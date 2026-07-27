@@ -1,0 +1,79 @@
+CREATE TABLE utilisateur (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  nom VARCHAR(100) NOT NULL,
+  prenom VARCHAR(100) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  mot_de_passe VARCHAR(255) NOT NULL,
+  date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE compte (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  utilisateur_id INTEGER NOT NULL REFERENCES utilisateur(id),
+  nom VARCHAR(100) NOT NULL,
+  type_compte VARCHAR(50) NOT NULL,
+  solde_initial NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  devise VARCHAR(3) NOT NULL DEFAULT 'EUR',
+  date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE categorie (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  utilisateur_id INTEGER NOT NULL REFERENCES utilisateur(id),
+  nom VARCHAR(100) NOT NULL,
+  type_categorie VARCHAR(20) NOT NULL,
+  UNIQUE (utilisateur_id, nom)
+);
+
+CREATE TABLE transaction_financiere (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  compte_id INTEGER NOT NULL REFERENCES compte(id),
+  categorie_id INTEGER REFERENCES categorie(id),
+  libelle VARCHAR(255) NOT NULL,
+  montant NUMERIC(12, 2) NOT NULL,
+  date_transaction DATE NOT NULL,
+  type_transaction VARCHAR(20) NOT NULL,
+  date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE budget (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  utilisateur_id INTEGER NOT NULL REFERENCES utilisateur(id),
+  categorie_id INTEGER NOT NULL REFERENCES categorie(id),
+  montant_maximum NUMERIC(12, 2) NOT NULL,
+  mois INTEGER NOT NULL,
+  annee INTEGER NOT NULL,
+  UNIQUE (utilisateur_id, categorie_id, mois, annee)
+);
+
+CREATE TABLE objectif (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  utilisateur_id INTEGER NOT NULL REFERENCES utilisateur(id),
+  nom VARCHAR(150) NOT NULL,
+  montant_cible NUMERIC(12, 2) NOT NULL,
+  montant_actuel NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  date_echeance DATE,
+  statut VARCHAR(20) NOT NULL DEFAULT 'en_cours',
+  date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE actif_financier (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  symbole VARCHAR(20) NOT NULL,
+  nom VARCHAR(150) NOT NULL,
+  type_actif VARCHAR(30) NOT NULL,
+  devise VARCHAR(3) NOT NULL DEFAULT 'EUR',
+  UNIQUE (symbole, devise)
+);
+
+CREATE TABLE operation_investissement (
+  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  compte_id INTEGER NOT NULL REFERENCES compte(id),
+  actif_financier_id INTEGER NOT NULL REFERENCES actif_financier(id),
+  type_operation VARCHAR(20) NOT NULL,
+  quantite NUMERIC(18, 8) NOT NULL,
+  prix_unitaire NUMERIC(18, 8) NOT NULL,
+  frais NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  date_operation DATE NOT NULL,
+  date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
