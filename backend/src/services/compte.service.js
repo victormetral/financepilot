@@ -77,3 +77,16 @@ export const updateCompte = async (
 
   return result.rows[0]
 }
+
+export const deleteCompte = async (id) => {
+  const result = await pool.query(
+    `
+      DELETE FROM compte
+      WHERE id = $1
+      RETURNING *
+    `,
+    [id]
+  )
+
+  return result.rows[0]
+} 

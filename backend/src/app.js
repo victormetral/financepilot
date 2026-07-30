@@ -5,12 +5,17 @@ import "dotenv/config"
 import { pool } from "./config/database.js"
 
 import compteRoutes from "./routes/compte.routes.js"
+import categorieRoutes from "./routes/categorie.routes.js"
+import transactionRoutes from "./routes/transaction.routes.js"
 
 const app = express()
 
 app.use(cors())
 app.use(express.json())
+
 app.use("/api/comptes", compteRoutes) 
+app.use("/api/categories", categorieRoutes)
+app.use("/api/transactions", transactionRoutes)
 
 app.get("/", (request, response) => {
   response.json({
