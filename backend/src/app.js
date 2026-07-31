@@ -1,21 +1,23 @@
 import express from "express"
 import cors from "cors"
-import "dotenv/config"
-
-import { pool } from "./config/database.js"
+import dotenv from "dotenv"
 
 import compteRoutes from "./routes/compte.routes.js"
 import categorieRoutes from "./routes/categorie.routes.js"
 import transactionRoutes from "./routes/transaction.routes.js"
+import budgetRoutes from "./routes/budget.routes.js"
+import objectifRoutes from "./routes/objectif.routes.js"
+import actifFinancierRoutes from "./routes/actifFinancier.routes.js"
+import operationInvestissementRoutes from "./routes/operationInvestissement.routes.js"
+import utilisateurRoutes from "./routes/utilisateur.routes.js"
+
+dotenv.config()
 
 const app = express()
 
 app.use(cors())
-app.use(express.json())
 
-app.use("/api/comptes", compteRoutes) 
-app.use("/api/categories", categorieRoutes)
-app.use("/api/transactions", transactionRoutes)
+app.use(express.json())
 
 app.get("/", (request, response) => {
   response.json({
@@ -23,24 +25,38 @@ app.get("/", (request, response) => {
   })
 })
 
-app.get("/api/test-database", async (request, response) => {
-  try {
-    const result = await pool.query("SELECT NOW()")
+app.use("/api/comptes", compteRoutes)
 
-    response.json({
-      message: "Connexion PostgreSQL réussie",
-      date: result.rows[0].now,
-    })
-  } catch (error) {
-    response.status(500).json({
-      message: "Erreur de connexion PostgreSQL",
-      error: error.message,
-    })
-  }
-})
+app.use("/api/categories", categorieRoutes)
 
-const port = Number(process.env.PORT) || 3000
+app.use(
+  "/api/transactions",
+  transactionRoutes
+)
 
-app.listen(port, () => {
-  console.log(`Serveur démarré sur http://localhost:${port}`)
+app.use("/api/budgets", budgetRoutes)
+
+app.use("/api/objectifs", objectifRoutes)
+
+app.use(
+  "/api/actifs-financiers",
+  actifFinancierRoutes
+)
+
+app.use(
+  "/api/operations-investissement",
+  operationInvestissementRoutes
+)
+
+app.use(
+  "/api/utilisateurs",
+  utilisateurRoutes
+)
+
+const PORT = process.env.PORT || 3000
+
+app.listen(PORT, () => {
+  console.log(
+    `Serveur démarré sur http://localhost:${PORT}`
+  )
 })

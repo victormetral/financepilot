@@ -172,11 +172,30 @@ export const getTransactions = async (request, response) => {
     const totalPages =
       Math.ceil(resultat.total / limiteNombre)
 
+    if (
+      resultat.total > 0 &&
+      pageNombre > totalPages
+    ) {
+      return response.status(400).json({
+        message: `La page ${pageNombre} n’existe pas. Dernière page disponible : ${totalPages}`,
+      })
+    }
+
     const pagePrecedente =
       pageNombre > 1
 
     const pageSuivante =
       pageNombre < totalPages
+
+    const numeroPagePrecedente =
+      pagePrecedente
+        ? pageNombre - 1
+        : null
+
+    const numeroPageSuivante =
+      pageSuivante
+        ? pageNombre + 1
+        : null
 
     response.json({
       transactions: resultat.transactions,
@@ -188,6 +207,8 @@ export const getTransactions = async (request, response) => {
         total_pages: totalPages,
         has_previous: pagePrecedente,
         has_next: pageSuivante,
+        previous_page: numeroPagePrecedente,
+        next_page: numeroPageSuivante,
       },
     })
   } catch (error) {
