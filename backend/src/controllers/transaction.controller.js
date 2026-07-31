@@ -1,3 +1,30 @@
+/*
+  CONTRÔLEUR DES TRANSACTIONS
+
+  Ce fichier orchestre les requêtes HTTP liées aux transactions.
+
+  Il doit rester simple :
+  - récupérer request ;
+  - appeler transaction.validator.js ;
+  - appeler transaction.service.js ;
+  - renvoyer response.
+
+  Répartition des responsabilités :
+
+  transaction.controller.js
+  → orchestre la requête HTTP
+
+  transaction.validator.js
+  → valide et transforme les données
+
+  transaction.service.js
+  → exécute les requêtes SQL
+
+  Victor :
+  si une règle de validation change, regarde d’abord dans
+  transaction.validator.js, pas dans ce contrôleur.
+*/
+
 import {
   findAllTransactions,
   findTransactionById,
@@ -6,210 +33,95 @@ import {
   deleteTransaction,
 } from "../services/transaction.service.js"
 
-export const getTransactions = async (request, response) => {
+import {
+  validerFiltresTransactions,
+  validerIdTransaction,
+  validerDonneesTransaction,
+} from "../validators/transaction.validator.js"
+
+import {
+  creerPagination,
+  pageExiste,
+  calculerTotalPages,
+} from "../utils/pagination.utils.js"
+
+/*
+  Récupère les transactions avec les filtres et la pagination.
+
+  Exemple :
+  GET /api/transactions?compte_id=1&limite=3&page=2
+*/
+export const getTransactions = async (
+  request,
+  response
+) => {
   try {
+    // Le validateur transforme et vérifie request.query.
+    const validation =
+      validerFiltresTransactions(request.query)
+
+    if (!validation.estValide) {
+      return response.status(400).json({
+        message: validation.message,
+      })
+    }
+
     const {
-      compte_id,
-      categorie_id,
-      type_transaction,
-      date_debut,
-      date_fin,
+      compteId,
+      categorieId,
+      typeTransaction,
+      dateDebut,
+      dateFin,
       recherche,
       limite,
       page,
-    } = request.query
-
-    const compteIdNombre =
-      compte_id !== undefined
-        ? Number(compte_id)
-        : undefined
-
-    const categorieIdNombre =
-      categorie_id !== undefined
-        ? Number(categorie_id)
-        : undefined
-
-    const limiteNombre =
-      limite !== undefined
-        ? Number(limite)
-        : 20
-
-    const pageNombre =
-      page !== undefined
-        ? Number(page)
-        : 1
-
-    const typesAutorises = [
-      "revenu",
-      "depense",
-      "transfert",
-    ]
-
-    const formatDate = /^\d{4}-\d{2}-\d{2}$/
-
-    const dateEstValide = (date) => {
-      if (!formatDate.test(date)) {
-        return false
-      }
-
-      const [annee, mois, jour] = date
-        .split("-")
-        .map(Number)
-
-      const dateConstruite = new Date(
-        Date.UTC(annee, mois - 1, jour)
-      )
-
-      return (
-        dateConstruite.getUTCFullYear() === annee &&
-        dateConstruite.getUTCMonth() === mois - 1 &&
-        dateConstruite.getUTCDate() === jour
-      )
-    }
-
-    if (
-      compteIdNombre !== undefined &&
-      (
-        !Number.isInteger(compteIdNombre) ||
-        compteIdNombre <= 0
-      )
-    ) {
-      return response.status(400).json({
-        message:
-          "compte_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      categorieIdNombre !== undefined &&
-      (
-        !Number.isInteger(categorieIdNombre) ||
-        categorieIdNombre <= 0
-      )
-    ) {
-      return response.status(400).json({
-        message:
-          "categorie_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      type_transaction !== undefined &&
-      !typesAutorises.includes(type_transaction)
-    ) {
-      return response.status(400).json({
-        message:
-          "type_transaction doit être revenu, depense ou transfert",
-      })
-    }
-
-    if (
-      date_debut !== undefined &&
-      !dateEstValide(date_debut)
-    ) {
-      return response.status(400).json({
-        message:
-          "date_debut doit être une date valide au format AAAA-MM-JJ",
-      })
-    }
-
-    if (
-      date_fin !== undefined &&
-      !dateEstValide(date_fin)
-    ) {
-      return response.status(400).json({
-        message:
-          "date_fin doit être une date valide au format AAAA-MM-JJ",
-      })
-    }
-
-    if (
-      date_debut !== undefined &&
-      date_fin !== undefined &&
-      date_debut > date_fin
-    ) {
-      return response.status(400).json({
-        message:
-          "date_debut doit être antérieure ou égale à date_fin",
-      })
-    }
-
-    if (
-      !Number.isInteger(limiteNombre) ||
-      limiteNombre <= 0 ||
-      limiteNombre > 100
-    ) {
-      return response.status(400).json({
-        message:
-          "limite doit être un nombre entier compris entre 1 et 100",
-      })
-    }
-
-    if (
-      !Number.isInteger(pageNombre) ||
-      pageNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "page doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    const offsetNombre =
-      (pageNombre - 1) * limiteNombre
+      offset,
+    } = validation.donnees
 
     const resultat = await findAllTransactions(
-      compteIdNombre,
-      categorieIdNombre,
-      type_transaction,
-      date_debut,
-      date_fin,
+      compteId,
+      categorieId,
+      typeTransaction,
+      dateDebut,
+      dateFin,
       recherche,
-      limiteNombre,
-      offsetNombre
+      limite,
+      offset
     )
 
-    const totalPages =
-      Math.ceil(resultat.total / limiteNombre)
-
+    /*
+      Une page supérieure au nombre total de pages
+      est refusée lorsque des résultats existent.
+    */
     if (
-      resultat.total > 0 &&
-      pageNombre > totalPages
+      !pageExiste({
+        total: resultat.total,
+        page,
+        limite,
+      })
     ) {
+      const totalPages =
+        calculerTotalPages(
+          resultat.total,
+          limite
+        )
+
       return response.status(400).json({
-        message: `La page ${pageNombre} n’existe pas. Dernière page disponible : ${totalPages}`,
+        message:
+          `La page ${page} n’existe pas. ` +
+          `Dernière page disponible : ${totalPages}`,
       })
     }
-
-    const pagePrecedente =
-      pageNombre > 1
-
-    const pageSuivante =
-      pageNombre < totalPages
-
-    const numeroPagePrecedente =
-      pagePrecedente
-        ? pageNombre - 1
-        : null
-
-    const numeroPageSuivante =
-      pageSuivante
-        ? pageNombre + 1
-        : null
 
     response.json({
       transactions: resultat.transactions,
-      pagination: {
+
+      // Construit toutes les informations de navigation.
+      pagination: creerPagination({
         total: resultat.total,
-        limite: limiteNombre,
-        offset: offsetNombre,
-        page: pageNombre,
-        total_pages: totalPages,
-        has_previous: pagePrecedente,
-        has_next: pageSuivante,
-        previous_page: numeroPagePrecedente,
-        next_page: numeroPageSuivante,
-      },
+        limite,
+        page,
+      }),
     })
   } catch (error) {
     response.status(500).json({
@@ -220,14 +132,30 @@ export const getTransactions = async (request, response) => {
   }
 }
 
+/*
+  Récupère une transaction grâce à son identifiant.
+
+  Exemple :
+  GET /api/transactions/3
+*/
 export const getTransactionById = async (
   request,
   response
 ) => {
   try {
-    const transaction = await findTransactionById(
-      request.params.id
-    )
+    const validation =
+      validerIdTransaction(request.params.id)
+
+    if (!validation.estValide) {
+      return response.status(400).json({
+        message: validation.message,
+      })
+    }
+
+    const transaction =
+      await findTransactionById(
+        validation.donnees.id
+      )
 
     if (!transaction) {
       return response.status(404).json({
@@ -245,56 +173,44 @@ export const getTransactionById = async (
   }
 }
 
+/*
+  Crée une transaction.
+
+  Le validateur vérifie notamment :
+  - le compte ;
+  - la catégorie facultative ;
+  - le libellé ;
+  - le montant ;
+  - la date ;
+  - le type de transaction.
+*/
 export const postTransaction = async (
   request,
   response
 ) => {
   try {
-    const {
-      compte_id,
-      categorie_id,
-      libelle,
-      montant,
-      date_transaction,
-      type_transaction,
-    } = request.body
+    const validation =
+      validerDonneesTransaction(request.body)
 
-    if (
-      !compte_id ||
-      !libelle ||
-      montant === undefined ||
-      !date_transaction ||
-      !type_transaction
-    ) {
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "compte_id, libelle, montant, date_transaction et type_transaction sont obligatoires",
-      })
-    }
-
-    if (
-      type_transaction !== "revenu" &&
-      type_transaction !== "depense" &&
-      type_transaction !== "transfert"
-    ) {
-      return response.status(400).json({
-        message:
-          "type_transaction doit être revenu, depense ou transfert",
+        message: validation.message,
       })
     }
 
     const nouvelleTransaction =
-      await createTransaction({
-        compte_id,
-        categorie_id,
-        libelle,
-        montant,
-        date_transaction,
-        type_transaction,
-      })
+      await createTransaction(
+        validation.donnees
+      )
 
-    response.status(201).json(nouvelleTransaction)
+    response.status(201).json(
+      nouvelleTransaction
+    )
   } catch (error) {
+    /*
+      PostgreSQL 23503 :
+      le compte ou la catégorie référencée n’existe pas.
+    */
     if (error.code === "23503") {
       return response.status(409).json({
         message:
@@ -310,55 +226,38 @@ export const postTransaction = async (
   }
 }
 
+/*
+  Modifie entièrement une transaction.
+
+  PUT utilise les mêmes règles de validation que POST.
+*/
 export const putTransaction = async (
   request,
   response
 ) => {
   try {
-    const {
-      compte_id,
-      categorie_id,
-      libelle,
-      montant,
-      date_transaction,
-      type_transaction,
-    } = request.body
+    const validationId =
+      validerIdTransaction(request.params.id)
 
-    if (
-      !compte_id ||
-      !libelle ||
-      montant === undefined ||
-      !date_transaction ||
-      !type_transaction
-    ) {
+    if (!validationId.estValide) {
       return response.status(400).json({
-        message:
-          "compte_id, libelle, montant, date_transaction et type_transaction sont obligatoires",
+        message: validationId.message,
       })
     }
 
-    if (
-      type_transaction !== "revenu" &&
-      type_transaction !== "depense" &&
-      type_transaction !== "transfert"
-    ) {
+    const validationDonnees =
+      validerDonneesTransaction(request.body)
+
+    if (!validationDonnees.estValide) {
       return response.status(400).json({
-        message:
-          "type_transaction doit être revenu, depense ou transfert",
+        message: validationDonnees.message,
       })
     }
 
     const transactionModifiee =
       await updateTransaction(
-        request.params.id,
-        {
-          compte_id,
-          categorie_id,
-          libelle,
-          montant,
-          date_transaction,
-          type_transaction,
-        }
+        validationId.donnees.id,
+        validationDonnees.donnees
       )
 
     if (!transactionModifiee) {
@@ -384,13 +283,30 @@ export const putTransaction = async (
   }
 }
 
+/*
+  Supprime une transaction grâce à son identifiant.
+
+  Le service renvoie la ligne supprimée grâce à
+  RETURNING *.
+*/
 export const deleteTransactionById = async (
   request,
   response
 ) => {
   try {
+    const validation =
+      validerIdTransaction(request.params.id)
+
+    if (!validation.estValide) {
+      return response.status(400).json({
+        message: validation.message,
+      })
+    }
+
     const transactionSupprimee =
-      await deleteTransaction(request.params.id)
+      await deleteTransaction(
+        validation.donnees.id
+      )
 
     if (!transactionSupprimee) {
       return response.status(404).json({

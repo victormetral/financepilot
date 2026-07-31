@@ -1,3 +1,31 @@
+/*
+  CONTRÔLEUR DES OBJECTIFS FINANCIERS
+
+  Ce fichier orchestre les requêtes HTTP liées aux objectifs.
+
+  Il doit rester simple :
+  - récupérer les données de la requête ;
+  - appeler objectif.validator.js ;
+  - appeler objectif.service.js ;
+  - renvoyer la réponse HTTP.
+
+  Répartition des responsabilités :
+
+  objectif.controller.js
+  → orchestre les requêtes HTTP
+
+  objectif.validator.js
+  → valide et transforme les données
+
+  objectif.service.js
+  → exécute les requêtes SQL
+
+  Victor :
+  si une règle liée aux montants, aux dates,
+  aux statuts ou aux identifiants change,
+  modifie d’abord objectif.validator.js.
+*/
+
 import {
   findAllObjectifs,
   findObjectifById,
@@ -6,37 +34,20 @@ import {
   deleteObjectif,
 } from "../services/objectif.service.js"
 
-// Valeurs autorisées pour le statut
-const statutsAutorises = [
-  "en cours",
-  "atteint",
-  "abandonne",
-]
+// 🟨 NOUVEAU : les validations sont déplacées
+// dans un fichier spécialisé.
+import {
+  validerIdObjectif,
+  validerCreationObjectif,
+  validerModificationObjectif,
+} from "../validators/objectif.validator.js"
 
-// Vérifier qu’une date existe réellement
-const dateEstValide = (date) => {
-  const formatDate = /^\d{4}-\d{2}-\d{2}$/
+/*
+  Récupère tous les objectifs financiers.
 
-  if (!formatDate.test(date)) {
-    return false
-  }
-
-  const [annee, mois, jour] = date
-    .split("-")
-    .map(Number)
-
-  const dateConstruite = new Date(
-    Date.UTC(annee, mois - 1, jour)
-  )
-
-  return (
-    dateConstruite.getUTCFullYear() === annee &&
-    dateConstruite.getUTCMonth() === mois - 1 &&
-    dateConstruite.getUTCDate() === jour
-  )
-}
-
-// Récupérer tous les objectifs
+  Exemple :
+  GET /api/objectifs
+*/
 export const getObjectifs = async (
   request,
   response
@@ -54,28 +65,32 @@ export const getObjectifs = async (
   }
 }
 
-// Récupérer un objectif par son identifiant
+/*
+  Récupère un objectif précis grâce à son identifiant.
+
+  Exemple :
+  GET /api/objectifs/3
+*/
 export const getObjectifById = async (
   request,
   response
 ) => {
   try {
-    const objectifIdNombre = Number(
-      request.params.id
-    )
+    /*
+      Le validateur transforme l’identifiant reçu
+      sous forme de texte en nombre, puis le vérifie.
+    */
+    const validation =
+      validerIdObjectif(request.params.id)
 
-    if (
-      !Number.isInteger(objectifIdNombre) ||
-      objectifIdNombre <= 0
-    ) {
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "L’identifiant de l’objectif doit être un nombre entier supérieur à 0",
+        message: validation.message,
       })
     }
 
     const objectif = await findObjectifById(
-      objectifIdNombre
+      validation.donnees.id
     )
 
     if (!objectif) {
@@ -94,109 +109,42 @@ export const getObjectifById = async (
   }
 }
 
-// Créer un objectif
+/*
+  Crée un nouvel objectif.
+
+  Le validateur de création gère notamment
+  les valeurs par défaut :
+
+  - montant_actuel = 0 ;
+  - date_echeance = null ;
+  - statut = "en cours".
+*/
 export const postObjectif = async (
   request,
   response
 ) => {
   try {
-    const {
-      utilisateur_id,
-      nom,
-      montant_cible,
-      montant_actuel = 0,
-      date_echeance = null,
-      statut = "en cours",
-    } = request.body
+    const validation =
+      validerCreationObjectif(request.body)
 
-    if (
-      utilisateur_id === undefined ||
-      !nom ||
-      montant_cible === undefined
-    ) {
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "utilisateur_id, nom et montant_cible sont obligatoires",
+        message: validation.message,
       })
     }
 
-    const utilisateurIdNombre =
-      Number(utilisateur_id)
-
-    const montantCibleNombre =
-      Number(montant_cible)
-
-    const montantActuelNombre =
-      Number(montant_actuel)
-
-    if (
-      !Number.isInteger(utilisateurIdNombre) ||
-      utilisateurIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "utilisateur_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      typeof nom !== "string" ||
-      nom.trim().length === 0
-    ) {
-      return response.status(400).json({
-        message:
-          "nom doit être un texte non vide",
-      })
-    }
-
-    if (
-      !Number.isFinite(montantCibleNombre) ||
-      montantCibleNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "montant_cible doit être un nombre supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isFinite(montantActuelNombre) ||
-      montantActuelNombre < 0
-    ) {
-      return response.status(400).json({
-        message:
-          "montant_actuel doit être un nombre supérieur ou égal à 0",
-      })
-    }
-
-    if (
-      date_echeance !== null &&
-      !dateEstValide(date_echeance)
-    ) {
-      return response.status(400).json({
-        message:
-          "date_echeance doit être une date valide au format AAAA-MM-JJ",
-      })
-    }
-
-    if (!statutsAutorises.includes(statut)) {
-      return response.status(400).json({
-        message:
-          "statut doit être en cours, atteint ou abandonne",
-      })
-    }
-
-    const nouvelObjectif = await createObjectif({
-      utilisateur_id: utilisateurIdNombre,
-      nom: nom.trim(),
-      montant_cible: montantCibleNombre,
-      montant_actuel: montantActuelNombre,
-      date_echeance,
-      statut,
-    })
+    const nouvelObjectif =
+      await createObjectif(validation.donnees)
 
     response.status(201).json(nouvelObjectif)
   } catch (error) {
+    /*
+      PostgreSQL 23503 :
+      une clé étrangère ne correspond à aucune ligne.
+
+      Ici, cela signifie généralement que
+      utilisateur_id ne correspond à aucun utilisateur.
+    */
     if (error.code === "23503") {
       return response.status(409).json({
         message:
@@ -212,126 +160,43 @@ export const postObjectif = async (
   }
 }
 
-// Modifier un objectif
+/*
+  Modifie entièrement un objectif existant.
+
+  PUT attend toutes les données principales.
+
+  L’identifiant et le contenu JSON sont validés
+  séparément pour produire des messages précis.
+*/
 export const putObjectif = async (
   request,
   response
 ) => {
   try {
-    const objectifIdNombre = Number(
-      request.params.id
-    )
+    const validationId =
+      validerIdObjectif(request.params.id)
 
-    if (
-      !Number.isInteger(objectifIdNombre) ||
-      objectifIdNombre <= 0
-    ) {
+    if (!validationId.estValide) {
       return response.status(400).json({
-        message:
-          "L’identifiant de l’objectif doit être un nombre entier supérieur à 0",
+        message: validationId.message,
       })
     }
 
-    const {
-      utilisateur_id,
-      nom,
-      montant_cible,
-      montant_actuel,
-      date_echeance,
-      statut,
-    } = request.body
+    const validationDonnees =
+      validerModificationObjectif(
+        request.body
+      )
 
-    if (
-      utilisateur_id === undefined ||
-      !nom ||
-      montant_cible === undefined ||
-      montant_actuel === undefined ||
-      statut === undefined
-    ) {
+    if (!validationDonnees.estValide) {
       return response.status(400).json({
-        message:
-          "utilisateur_id, nom, montant_cible, montant_actuel et statut sont obligatoires",
-      })
-    }
-
-    const utilisateurIdNombre =
-      Number(utilisateur_id)
-
-    const montantCibleNombre =
-      Number(montant_cible)
-
-    const montantActuelNombre =
-      Number(montant_actuel)
-
-    if (
-      !Number.isInteger(utilisateurIdNombre) ||
-      utilisateurIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "utilisateur_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      typeof nom !== "string" ||
-      nom.trim().length === 0
-    ) {
-      return response.status(400).json({
-        message:
-          "nom doit être un texte non vide",
-      })
-    }
-
-    if (
-      !Number.isFinite(montantCibleNombre) ||
-      montantCibleNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "montant_cible doit être un nombre supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isFinite(montantActuelNombre) ||
-      montantActuelNombre < 0
-    ) {
-      return response.status(400).json({
-        message:
-          "montant_actuel doit être un nombre supérieur ou égal à 0",
-      })
-    }
-
-    if (
-      date_echeance !== null &&
-      date_echeance !== undefined &&
-      !dateEstValide(date_echeance)
-    ) {
-      return response.status(400).json({
-        message:
-          "date_echeance doit être une date valide au format AAAA-MM-JJ",
-      })
-    }
-
-    if (!statutsAutorises.includes(statut)) {
-      return response.status(400).json({
-        message:
-          "statut doit être en cours, atteint ou abandonne",
+        message: validationDonnees.message,
       })
     }
 
     const objectifModifie =
       await updateObjectif(
-        objectifIdNombre,
-        {
-          utilisateur_id: utilisateurIdNombre,
-          nom: nom.trim(),
-          montant_cible: montantCibleNombre,
-          montant_actuel: montantActuelNombre,
-          date_echeance: date_echeance ?? null,
-          statut,
-        }
+        validationId.donnees.id,
+        validationDonnees.donnees
       )
 
     if (!objectifModifie) {
@@ -357,28 +222,30 @@ export const putObjectif = async (
   }
 }
 
-// Supprimer un objectif
+/*
+  Supprime un objectif grâce à son identifiant.
+
+  Le service renvoie l’objectif supprimé grâce
+  à la clause SQL RETURNING *.
+*/
 export const deleteObjectifById = async (
   request,
   response
 ) => {
   try {
-    const objectifIdNombre = Number(
-      request.params.id
-    )
+    const validation =
+      validerIdObjectif(request.params.id)
 
-    if (
-      !Number.isInteger(objectifIdNombre) ||
-      objectifIdNombre <= 0
-    ) {
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "L’identifiant de l’objectif doit être un nombre entier supérieur à 0",
+        message: validation.message,
       })
     }
 
     const objectifSupprime =
-      await deleteObjectif(objectifIdNombre)
+      await deleteObjectif(
+        validation.donnees.id
+      )
 
     if (!objectifSupprime) {
       return response.status(404).json({

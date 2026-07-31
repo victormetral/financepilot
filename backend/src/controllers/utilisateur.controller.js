@@ -1,3 +1,45 @@
+/*
+  CONTRÔLEUR DES UTILISATEURS
+
+  Ce fichier orchestre les requêtes HTTP liées
+  aux utilisateurs.
+
+  Routes concernées :
+  - GET    /api/utilisateurs
+  - GET    /api/utilisateurs/:id
+  - POST   /api/utilisateurs
+  - PUT    /api/utilisateurs/:id
+  - DELETE /api/utilisateurs/:id
+
+  Répartition des responsabilités :
+
+  utilisateur.controller.js
+  → orchestre les requêtes HTTP
+  → vérifie les doublons d’email
+  → hache les mots de passe
+
+  utilisateur.validator.js
+  → valide et nettoie les données
+
+  utilisateur.service.js
+  → exécute les requêtes SQL
+
+  bcryptjs
+  → transforme le mot de passe en hash sécurisé
+
+  Règle de sécurité importante :
+  le mot de passe ne doit jamais apparaître
+  dans une réponse JSON, même lorsqu’il est haché.
+
+  Victor :
+  si une règle de validation change,
+  modifie d’abord utilisateur.validator.js.
+
+  Si la méthode de sécurisation des mots de passe change,
+  modifie ce contrôleur ou crée ensuite un service
+  spécialisé pour l’authentification.
+*/
+
 import bcrypt from "bcryptjs"
 
 import {
@@ -9,37 +51,51 @@ import {
   deleteUtilisateur,
 } from "../services/utilisateur.service.js"
 
-// Nombre de tours utilisés pour sécuriser le hash
-const nombreToursHash = 10
+// 🟨 NOUVEAU : validations déplacées dans un fichier spécialisé.
+import {
+  validerIdUtilisateur,
+  validerDonneesUtilisateur,
+} from "../validators/utilisateur.validator.js"
 
-// Vérifier qu’un texte n’est pas vide
-const texteEstValide = (texte) => {
-  return (
-    typeof texte === "string" &&
-    texte.trim().length > 0
+/*
+  Nombre de tours utilisés par bcrypt pour générer
+  un hash plus coûteux à calculer.
+
+  Plus ce nombre est élevé :
+  - plus le hash est lent à produire ;
+  - plus les attaques par essais répétés sont coûteuses.
+
+  La valeur 10 conserve le comportement actuel.
+*/
+const NOMBRE_TOURS_HASH = 10
+
+/*
+  Hache un mot de passe avant son stockage.
+
+  Un hash est une représentation non réversible
+  du mot de passe.
+
+  Le mot de passe original ne doit jamais être
+  enregistré directement dans PostgreSQL.
+*/
+const hacherMotDePasse = async (
+  motDePasse
+) => {
+  return bcrypt.hash(
+    motDePasse,
+    NOMBRE_TOURS_HASH
   )
 }
 
-// Vérifier le format général d’un email
-const emailEstValide = (email) => {
-  const formatEmail =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+/*
+  Récupère tous les utilisateurs.
 
-  return (
-    typeof email === "string" &&
-    formatEmail.test(email)
-  )
-}
+  Exemple :
+  GET /api/utilisateurs
 
-// Vérifier la solidité minimale du mot de passe
-const motDePasseEstValide = (motDePasse) => {
-  return (
-    typeof motDePasse === "string" &&
-    motDePasse.length >= 8
-  )
-}
-
-// Récupérer tous les utilisateurs
+  Le service doit sélectionner uniquement les champs
+  publics et ne jamais renvoyer mot_de_passe.
+*/
 export const getUtilisateurs = async (
   request,
   response
@@ -58,29 +114,32 @@ export const getUtilisateurs = async (
   }
 }
 
-// Récupérer un utilisateur par son identifiant
+/*
+  Récupère un utilisateur précis grâce
+  à son identifiant.
+
+  Exemple :
+  GET /api/utilisateurs/3
+*/
 export const getUtilisateurById = async (
   request,
   response
 ) => {
   try {
-    const utilisateurIdNombre = Number(
-      request.params.id
-    )
+    const validation =
+      validerIdUtilisateur(
+        request.params.id
+      )
 
-    if (
-      !Number.isInteger(utilisateurIdNombre) ||
-      utilisateurIdNombre <= 0
-    ) {
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "L’identifiant de l’utilisateur doit être un nombre entier supérieur à 0",
+        message: validation.message,
       })
     }
 
     const utilisateur =
       await findUtilisateurById(
-        utilisateurIdNombre
+        validation.donnees.id
       )
 
     if (!utilisateur) {
@@ -99,66 +158,43 @@ export const getUtilisateurById = async (
   }
 }
 
-// Créer un utilisateur
+/*
+  Crée un nouvel utilisateur.
+
+  Étapes :
+  1. valider les données ;
+  2. normaliser l’email ;
+  3. vérifier que l’email est disponible ;
+  4. hacher le mot de passe ;
+  5. créer l’utilisateur.
+*/
 export const postUtilisateur = async (
   request,
   response
 ) => {
   try {
+    const validation =
+      validerDonneesUtilisateur(request.body)
+
+    if (!validation.estValide) {
+      return response.status(400).json({
+        message: validation.message,
+      })
+    }
+
     const {
       nom,
       prenom,
       email,
       mot_de_passe,
-    } = request.body
+    } = validation.donnees
 
-    if (
-      nom === undefined ||
-      prenom === undefined ||
-      email === undefined ||
-      mot_de_passe === undefined
-    ) {
-      return response.status(400).json({
-        message:
-          "nom, prenom, email et mot_de_passe sont obligatoires",
-      })
-    }
-
-    if (!texteEstValide(nom)) {
-      return response.status(400).json({
-        message:
-          "nom doit être un texte non vide",
-      })
-    }
-
-    if (!texteEstValide(prenom)) {
-      return response.status(400).json({
-        message:
-          "prenom doit être un texte non vide",
-      })
-    }
-
-    if (!emailEstValide(email)) {
-      return response.status(400).json({
-        message:
-          "email doit avoir un format valide",
-      })
-    }
-
-    if (!motDePasseEstValide(mot_de_passe)) {
-      return response.status(400).json({
-        message:
-          "mot_de_passe doit contenir au moins 8 caractères",
-      })
-    }
-
-    const emailNormalise =
-      email.trim().toLowerCase()
-
+    /*
+      Cette vérification permet de renvoyer un message
+      clair avant que PostgreSQL ne refuse le doublon.
+    */
     const utilisateurExistant =
-      await findUtilisateurByEmail(
-        emailNormalise
-      )
+      await findUtilisateurByEmail(email)
 
     if (utilisateurExistant) {
       return response.status(409).json({
@@ -167,24 +203,40 @@ export const postUtilisateur = async (
       })
     }
 
-    // Transformer le mot de passe en hash sécurisé
-    const motDePasseHash = await bcrypt.hash(
-      mot_de_passe,
-      nombreToursHash
-    )
+    const motDePasseHash =
+      await hacherMotDePasse(
+        mot_de_passe
+      )
 
+    /*
+      Seul le hash est envoyé au service.
+
+      Le mot de passe original n’est jamais envoyé
+      à PostgreSQL.
+    */
     const nouvelUtilisateur =
       await createUtilisateur({
-        nom: nom.trim(),
-        prenom: prenom.trim(),
-        email: emailNormalise,
+        nom,
+        prenom,
+        email,
         mot_de_passe: motDePasseHash,
       })
 
-    response.status(201).json(
-      nouvelUtilisateur
-    )
+    response
+      .status(201)
+      .json(nouvelUtilisateur)
   } catch (error) {
+    /*
+      PostgreSQL 23505 :
+      une valeur soumise à une contrainte UNIQUE
+      existe déjà.
+
+      Cette sécurité reste nécessaire même si une
+      vérification a déjà été faite avant l’insertion.
+
+      Deux requêtes simultanées pourraient en effet
+      tenter de créer le même email.
+    */
     if (error.code === "23505") {
       return response.status(409).json({
         message:
@@ -200,29 +252,43 @@ export const postUtilisateur = async (
   }
 }
 
-// Modifier un utilisateur
+/*
+  Modifie entièrement un utilisateur.
+
+  Étapes :
+  1. valider l’identifiant ;
+  2. vérifier que l’utilisateur existe ;
+  3. valider les nouvelles données ;
+  4. vérifier la disponibilité de l’email ;
+  5. hacher le nouveau mot de passe ;
+  6. modifier l’utilisateur.
+*/
 export const putUtilisateur = async (
   request,
   response
 ) => {
   try {
-    const utilisateurIdNombre = Number(
-      request.params.id
-    )
+    const validationId =
+      validerIdUtilisateur(
+        request.params.id
+      )
 
-    if (
-      !Number.isInteger(utilisateurIdNombre) ||
-      utilisateurIdNombre <= 0
-    ) {
+    if (!validationId.estValide) {
       return response.status(400).json({
-        message:
-          "L’identifiant de l’utilisateur doit être un nombre entier supérieur à 0",
+        message: validationId.message,
       })
     }
 
+    const utilisateurId =
+      validationId.donnees.id
+
+    /*
+      On vérifie l’existence avant les autres traitements
+      afin de renvoyer immédiatement une erreur 404.
+    */
     const utilisateurActuel =
       await findUtilisateurById(
-        utilisateurIdNombre
+        utilisateurId
       )
 
     if (!utilisateurActuel) {
@@ -231,65 +297,38 @@ export const putUtilisateur = async (
       })
     }
 
+    const validationDonnees =
+      validerDonneesUtilisateur(
+        request.body
+      )
+
+    if (!validationDonnees.estValide) {
+      return response.status(400).json({
+        message:
+          validationDonnees.message,
+      })
+    }
+
     const {
       nom,
       prenom,
       email,
       mot_de_passe,
-    } = request.body
-
-    if (
-      nom === undefined ||
-      prenom === undefined ||
-      email === undefined ||
-      mot_de_passe === undefined
-    ) {
-      return response.status(400).json({
-        message:
-          "nom, prenom, email et mot_de_passe sont obligatoires",
-      })
-    }
-
-    if (!texteEstValide(nom)) {
-      return response.status(400).json({
-        message:
-          "nom doit être un texte non vide",
-      })
-    }
-
-    if (!texteEstValide(prenom)) {
-      return response.status(400).json({
-        message:
-          "prenom doit être un texte non vide",
-      })
-    }
-
-    if (!emailEstValide(email)) {
-      return response.status(400).json({
-        message:
-          "email doit avoir un format valide",
-      })
-    }
-
-    if (!motDePasseEstValide(mot_de_passe)) {
-      return response.status(400).json({
-        message:
-          "mot_de_passe doit contenir au moins 8 caractères",
-      })
-    }
-
-    const emailNormalise =
-      email.trim().toLowerCase()
+    } = validationDonnees.donnees
 
     const utilisateurAvecEmail =
-      await findUtilisateurByEmail(
-        emailNormalise
-      )
+      await findUtilisateurByEmail(email)
 
+    /*
+      Le même utilisateur peut conserver son email.
+
+      L’erreur est renvoyée seulement lorsque l’email
+      appartient à un autre utilisateur.
+    */
     if (
       utilisateurAvecEmail &&
       utilisateurAvecEmail.id !==
-        utilisateurIdNombre
+        utilisateurId
     ) {
       return response.status(409).json({
         message:
@@ -297,19 +336,24 @@ export const putUtilisateur = async (
       })
     }
 
-    // Créer un nouveau hash pour le nouveau mot de passe
-    const motDePasseHash = await bcrypt.hash(
-      mot_de_passe,
-      nombreToursHash
-    )
+    /*
+      PUT exige actuellement un nouveau mot de passe.
+
+      Un nouveau hash est donc produit à chaque
+      modification complète.
+    */
+    const motDePasseHash =
+      await hacherMotDePasse(
+        mot_de_passe
+      )
 
     const utilisateurModifie =
       await updateUtilisateur(
-        utilisateurIdNombre,
+        utilisateurId,
         {
-          nom: nom.trim(),
-          prenom: prenom.trim(),
-          email: emailNormalise,
+          nom,
+          prenom,
+          email,
           mot_de_passe: motDePasseHash,
         }
       )
@@ -331,29 +375,35 @@ export const putUtilisateur = async (
   }
 }
 
-// Supprimer un utilisateur
+/*
+  Supprime un utilisateur grâce
+  à son identifiant.
+
+  Le service renvoie l’utilisateur supprimé grâce
+  à la clause SQL RETURNING.
+
+  Le service doit impérativement exclure
+  mot_de_passe du résultat.
+*/
 export const deleteUtilisateurById = async (
   request,
   response
 ) => {
   try {
-    const utilisateurIdNombre = Number(
-      request.params.id
-    )
+    const validation =
+      validerIdUtilisateur(
+        request.params.id
+      )
 
-    if (
-      !Number.isInteger(utilisateurIdNombre) ||
-      utilisateurIdNombre <= 0
-    ) {
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "L’identifiant de l’utilisateur doit être un nombre entier supérieur à 0",
+        message: validation.message,
       })
     }
 
     const utilisateurSupprime =
       await deleteUtilisateur(
-        utilisateurIdNombre
+        validation.donnees.id
       )
 
     if (!utilisateurSupprime) {
@@ -367,6 +417,14 @@ export const deleteUtilisateurById = async (
       utilisateur: utilisateurSupprime,
     })
   } catch (error) {
+    /*
+      PostgreSQL 23503 :
+      l’utilisateur est encore référencé
+      par d’autres tables.
+
+      La suppression est refusée pour ne pas produire
+      de données orphelines.
+    */
     if (error.code === "23503") {
       return response.status(409).json({
         message:

@@ -1,3 +1,34 @@
+/*
+  CONTRÔLEUR DES BUDGETS
+
+  Ce fichier orchestre les requêtes HTTP liées aux budgets.
+
+  Il doit rester simple :
+  - récupérer les données de la requête ;
+  - appeler budget.validator.js ;
+  - appeler budget.service.js ;
+  - renvoyer la réponse HTTP.
+
+  Répartition des responsabilités :
+
+  budget.controller.js
+  → orchestre les requêtes HTTP
+
+  budget.validator.js
+  → valide et transforme les données
+
+  budget.service.js
+  → exécute les requêtes SQL
+
+  pagination.utils.js
+  → calcule les informations de pagination
+
+  Victor :
+  si une règle concernant les mois, les années,
+  les montants ou les identifiants change,
+  modifie d’abord budget.validator.js.
+*/
+
 import {
   findAllBudgets,
   findBudgetById,
@@ -6,181 +37,122 @@ import {
   deleteBudget,
 } from "../services/budget.service.js"
 
+// 🟨 NOUVEAU : validations déplacées hors du contrôleur
+import {
+  validerFiltresBudgets,
+  validerIdBudget,
+  validerDonneesBudget,
+} from "../validators/budget.validator.js"
+
+// 🟨 NOUVEAU : calculs de pagination centralisés
+import {
+  creerPagination,
+  pageExiste,
+  calculerTotalPages,
+} from "../utils/pagination.utils.js"
+
+/*
+  Récupère les budgets avec des filtres facultatifs
+  et une pagination.
+
+  Exemple :
+  GET /api/budgets?utilisateur_id=1&mois=7&page=1
+*/
 export const getBudgets = async (
   request,
   response
 ) => {
   try {
+    /*
+      request.query contient les paramètres placés
+      après le point d’interrogation dans l’URL.
+
+      Le validateur :
+      - convertit les textes en nombres ;
+      - vérifie les filtres ;
+      - calcule l’offset.
+    */
+    const validation =
+      validerFiltresBudgets(request.query)
+
+    if (!validation.estValide) {
+      return response.status(400).json({
+        message: validation.message,
+      })
+    }
+
     const {
-      utilisateur_id,
-      categorie_id,
+      utilisateurId,
+      categorieId,
       mois,
       annee,
       limite,
       page,
-    } = request.query
+      offset,
+    } = validation.donnees
 
-    const utilisateurIdNombre =
-      utilisateur_id !== undefined
-        ? Number(utilisateur_id)
-        : undefined
+    /*
+      Le service récupère :
+      - les budgets de la page demandée ;
+      - le nombre total de budgets correspondants.
 
-    const categorieIdNombre =
-      categorie_id !== undefined
-        ? Number(categorie_id)
-        : undefined
-
-    const moisNombre =
-      mois !== undefined
-        ? Number(mois)
-        : undefined
-
-    const anneeNombre =
-      annee !== undefined
-        ? Number(annee)
-        : undefined
-
-    const limiteNombre =
-      limite !== undefined
-        ? Number(limite)
-        : 20
-
-    const pageNombre =
-      page !== undefined
-        ? Number(page)
-        : 1
-
-    if (
-      utilisateurIdNombre !== undefined &&
-      (
-        !Number.isInteger(utilisateurIdNombre) ||
-        utilisateurIdNombre <= 0
-      )
-    ) {
-      return response.status(400).json({
-        message:
-          "utilisateur_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      categorieIdNombre !== undefined &&
-      (
-        !Number.isInteger(categorieIdNombre) ||
-        categorieIdNombre <= 0
-      )
-    ) {
-      return response.status(400).json({
-        message:
-          "categorie_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      moisNombre !== undefined &&
-      (
-        !Number.isInteger(moisNombre) ||
-        moisNombre < 1 ||
-        moisNombre > 12
-      )
-    ) {
-      return response.status(400).json({
-        message:
-          "mois doit être un nombre entier compris entre 1 et 12",
-      })
-    }
-
-    if (
-      anneeNombre !== undefined &&
-      (
-        !Number.isInteger(anneeNombre) ||
-        anneeNombre < 2000 ||
-        anneeNombre > 2100
-      )
-    ) {
-      return response.status(400).json({
-        message:
-          "annee doit être un nombre entier compris entre 2000 et 2100",
-      })
-    }
-
-    if (
-      !Number.isInteger(limiteNombre) ||
-      limiteNombre < 1 ||
-      limiteNombre > 100
-    ) {
-      return response.status(400).json({
-        message:
-          "limite doit être un nombre entier compris entre 1 et 100",
-      })
-    }
-
-    if (
-      !Number.isInteger(pageNombre) ||
-      pageNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "page doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    const offsetNombre =
-      (pageNombre - 1) * limiteNombre
-
+      La pagination complète est ensuite construite
+      dans le contrôleur.
+    */
     const resultat = await findAllBudgets(
-      utilisateurIdNombre,
-      categorieIdNombre,
-      moisNombre,
-      anneeNombre,
-      limiteNombre,
-      offsetNombre
+      utilisateurId,
+      categorieId,
+      mois,
+      annee,
+      limite,
+      offset
     )
 
-    const totalPages =
-      Math.ceil(resultat.total / limiteNombre)
+    /*
+      Une page inexistante est refusée.
 
+      Exemple :
+      - 3 pages disponibles ;
+      - page 20 demandée.
+    */
     if (
-      resultat.total > 0 &&
-      pageNombre > totalPages
+      !pageExiste({
+        total: resultat.total,
+        page,
+        limite,
+      })
     ) {
+      const totalPages =
+        calculerTotalPages(
+          resultat.total,
+          limite
+        )
+
       return response.status(400).json({
-        message: `La page ${pageNombre} n’existe pas. Dernière page disponible : ${totalPages}`,
+        message:
+          `La page ${page} n’existe pas. ` +
+          `Dernière page disponible : ${totalPages}`,
       })
     }
-
-    const pagePrecedente =
-      pageNombre > 1
-
-    const pageSuivante =
-      pageNombre < totalPages
-
-    const numeroPagePrecedente =
-      pagePrecedente
-        ? pageNombre - 1
-        : null
-
-    const numeroPageSuivante =
-      pageSuivante
-        ? pageNombre + 1
-        : null
 
     response.json({
       budgets: resultat.budgets,
-      pagination: {
+
+      /*
+        creerPagination() renvoie notamment :
+        - total ;
+        - limite ;
+        - offset ;
+        - page ;
+        - total_pages ;
+        - previous_page ;
+        - next_page.
+      */
+      pagination: creerPagination({
         total: resultat.total,
-        limite: limiteNombre,
-        page: pageNombre,
-        total_pages: totalPages,
-
-        has_previous: pagePrecedente,
-
-        has_next: pageSuivante,
-
-        previous_page: numeroPagePrecedente,
-
-        next_page: numeroPageSuivante,
-      },
+        limite,
+        page,
+      }),
     })
   } catch (error) {
     response.status(500).json({
@@ -191,25 +163,29 @@ export const getBudgets = async (
   }
 }
 
+/*
+  Récupère un budget précis grâce à l’identifiant
+  placé dans l’URL.
+
+  Exemple :
+  GET /api/budgets/3
+*/
 export const getBudgetById = async (
   request,
   response
 ) => {
   try {
-    const budgetIdNombre = Number(request.params.id)
+    const validation =
+      validerIdBudget(request.params.id)
 
-    if (
-      !Number.isInteger(budgetIdNombre) ||
-      budgetIdNombre <= 0
-    ) {
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "L’identifiant du budget doit être un nombre entier supérieur à 0",
+        message: validation.message,
       })
     }
 
     const budget = await findBudgetById(
-      budgetIdNombre
+      validation.donnees.id
     )
 
     if (!budget) {
@@ -228,110 +204,65 @@ export const getBudgetById = async (
   }
 }
 
+/*
+  Crée un nouveau budget.
+
+  Le validateur vérifie :
+  - utilisateur_id ;
+  - categorie_id ;
+  - montant_limite ;
+  - mois ;
+  - annee.
+
+  Les données validées sont directement transmises
+  au service.
+*/
 export const postBudget = async (
   request,
   response
 ) => {
   try {
-    const {
-      utilisateur_id,
-      categorie_id,
-      montant_maximum,
-      mois,
-      annee,
-    } = request.body
+    const validation =
+      validerDonneesBudget(request.body)
 
-    if (
-      utilisateur_id === undefined ||
-      categorie_id === undefined ||
-      montant_maximum === undefined ||
-      mois === undefined ||
-      annee === undefined
-    ) {
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "utilisateur_id, categorie_id, montant_maximum, mois et annee sont obligatoires",
+        message: validation.message,
       })
     }
 
-    const utilisateurIdNombre =
-      Number(utilisateur_id)
-
-    const categorieIdNombre =
-      Number(categorie_id)
-
-    const montantMaximumNombre =
-      Number(montant_maximum)
-
-    const moisNombre = Number(mois)
-    const anneeNombre = Number(annee)
-
-    if (
-      !Number.isInteger(utilisateurIdNombre) ||
-      utilisateurIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "utilisateur_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isInteger(categorieIdNombre) ||
-      categorieIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "categorie_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isFinite(montantMaximumNombre) ||
-      montantMaximumNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "montant_maximum doit être un nombre supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isInteger(moisNombre) ||
-      moisNombre < 1 ||
-      moisNombre > 12
-    ) {
-      return response.status(400).json({
-        message:
-          "mois doit être un nombre entier compris entre 1 et 12",
-      })
-    }
-
-    if (
-      !Number.isInteger(anneeNombre) ||
-      anneeNombre < 2000 ||
-      anneeNombre > 2100
-    ) {
-      return response.status(400).json({
-        message:
-          "annee doit être un nombre entier compris entre 2000 et 2100",
-      })
-    }
-
-    const nouveauBudget = await createBudget({
-      utilisateur_id: utilisateurIdNombre,
-      categorie_id: categorieIdNombre,
-      montant_maximum: montantMaximumNombre,
-      mois: moisNombre,
-      annee: anneeNombre,
-    })
+    const nouveauBudget =
+      await createBudget(validation.donnees)
 
     response.status(201).json(nouveauBudget)
   } catch (error) {
+    /*
+      PostgreSQL 23503 :
+      une clé étrangère ne correspond à aucune ligne.
+
+      Ici, cela signifie généralement que :
+      - l’utilisateur n’existe pas ;
+      - ou la catégorie n’existe pas.
+    */
     if (error.code === "23503") {
       return response.status(409).json({
         message:
           "L’utilisateur ou la catégorie indiqué n’existe pas",
+      })
+    }
+
+    /*
+      PostgreSQL 23505 :
+      une contrainte d’unicité a été violée.
+
+      Cela peut arriver si la base interdit plusieurs
+      budgets identiques pour une même catégorie,
+      un même utilisateur, un même mois et une même année.
+    */
+    if (error.code === "23505") {
+      return response.status(409).json({
+        message:
+          "Un budget existe déjà pour cette catégorie et cette période",
       })
     }
 
@@ -343,119 +274,49 @@ export const postBudget = async (
   }
 }
 
+/*
+  Modifie entièrement un budget existant.
+
+  PUT attend toutes les données principales du budget.
+  Pour une modification partielle, une route PATCH
+  serait plus adaptée.
+*/
 export const putBudget = async (
   request,
   response
 ) => {
   try {
-    const budgetIdNombre = Number(request.params.id)
+    /*
+      L’identifiant de l’URL et les données JSON
+      sont validés séparément.
+    */
+    const validationId =
+      validerIdBudget(request.params.id)
 
-    if (
-      !Number.isInteger(budgetIdNombre) ||
-      budgetIdNombre <= 0
-    ) {
+    if (!validationId.estValide) {
       return response.status(400).json({
-        message:
-          "L’identifiant du budget doit être un nombre entier supérieur à 0",
+        message: validationId.message,
       })
     }
 
-    const {
-      utilisateur_id,
-      categorie_id,
-      montant_maximum,
-      mois,
-      annee,
-    } = request.body
+    const validationDonnees =
+      validerDonneesBudget(request.body)
 
-    if (
-      utilisateur_id === undefined ||
-      categorie_id === undefined ||
-      montant_maximum === undefined ||
-      mois === undefined ||
-      annee === undefined
-    ) {
+    if (!validationDonnees.estValide) {
       return response.status(400).json({
-        message:
-          "utilisateur_id, categorie_id, montant_maximum, mois et annee sont obligatoires",
-      })
-    }
-
-    const utilisateurIdNombre =
-      Number(utilisateur_id)
-
-    const categorieIdNombre =
-      Number(categorie_id)
-
-    const montantMaximumNombre =
-      Number(montant_maximum)
-
-    const moisNombre = Number(mois)
-    const anneeNombre = Number(annee)
-
-    if (
-      !Number.isInteger(utilisateurIdNombre) ||
-      utilisateurIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "utilisateur_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isInteger(categorieIdNombre) ||
-      categorieIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "categorie_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isFinite(montantMaximumNombre) ||
-      montantMaximumNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "montant_maximum doit être un nombre supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isInteger(moisNombre) ||
-      moisNombre < 1 ||
-      moisNombre > 12
-    ) {
-      return response.status(400).json({
-        message:
-          "mois doit être un nombre entier compris entre 1 et 12",
-      })
-    }
-
-    if (
-      !Number.isInteger(anneeNombre) ||
-      anneeNombre < 2000 ||
-      anneeNombre > 2100
-    ) {
-      return response.status(400).json({
-        message:
-          "annee doit être un nombre entier compris entre 2000 et 2100",
+        message: validationDonnees.message,
       })
     }
 
     const budgetModifie = await updateBudget(
-      budgetIdNombre,
-      {
-        utilisateur_id: utilisateurIdNombre,
-        categorie_id: categorieIdNombre,
-        montant_maximum: montantMaximumNombre,
-        mois: moisNombre,
-        annee: anneeNombre,
-      }
+      validationId.donnees.id,
+      validationDonnees.donnees
     )
 
+    /*
+      Le service renvoie null ou undefined
+      lorsqu’aucun budget ne correspond à l’identifiant.
+    */
     if (!budgetModifie) {
       return response.status(404).json({
         message: "Budget introuvable",
@@ -471,6 +332,13 @@ export const putBudget = async (
       })
     }
 
+    if (error.code === "23505") {
+      return response.status(409).json({
+        message:
+          "Un budget existe déjà pour cette catégorie et cette période",
+      })
+    }
+
     response.status(500).json({
       message:
         "Erreur lors de la modification du budget",
@@ -479,26 +347,30 @@ export const putBudget = async (
   }
 }
 
+/*
+  Supprime un budget grâce à son identifiant.
+
+  Le service renvoie le budget supprimé grâce
+  à la clause SQL RETURNING *.
+*/
 export const deleteBudgetById = async (
   request,
   response
 ) => {
   try {
-    const budgetIdNombre = Number(request.params.id)
+    const validation =
+      validerIdBudget(request.params.id)
 
-    if (
-      !Number.isInteger(budgetIdNombre) ||
-      budgetIdNombre <= 0
-    ) {
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "L’identifiant du budget doit être un nombre entier supérieur à 0",
+        message: validation.message,
       })
     }
 
-    const budgetSupprime = await deleteBudget(
-      budgetIdNombre
-    )
+    const budgetSupprime =
+      await deleteBudget(
+        validation.donnees.id
+      )
 
     if (!budgetSupprime) {
       return response.status(404).json({

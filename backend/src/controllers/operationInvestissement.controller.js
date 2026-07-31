@@ -1,3 +1,33 @@
+/*
+  CONTRÔLEUR DES OPÉRATIONS D’INVESTISSEMENT
+
+  Ce fichier orchestre les requêtes HTTP liées
+  aux opérations d’investissement.
+
+  Routes concernées :
+  - GET    /api/operations-investissement
+  - GET    /api/operations-investissement/:id
+  - POST   /api/operations-investissement
+  - PUT    /api/operations-investissement/:id
+  - DELETE /api/operations-investissement/:id
+
+  Répartition des responsabilités :
+
+  operationInvestissement.controller.js
+  → orchestre les requêtes HTTP
+
+  operationInvestissement.validator.js
+  → valide, transforme et nettoie les données
+
+  operationInvestissement.service.js
+  → exécute les requêtes SQL
+
+  Victor :
+  si une règle liée aux quantités, prix, frais,
+  dates ou identifiants change,
+  modifie d’abord le validateur.
+*/
+
 import {
   findAllOperationsInvestissement,
   findOperationInvestissementById,
@@ -6,416 +36,221 @@ import {
   deleteOperationInvestissement,
 } from "../services/operationInvestissement.service.js"
 
-// Vérifier qu’un texte n’est pas vide
-const texteEstValide = (texte) => {
-  return (
-    typeof texte === "string" &&
-    texte.trim().length > 0
-  )
-}
+// 🟨 NOUVEAU : validations déplacées dans un fichier spécialisé.
+import {
+  validerIdOperationInvestissement,
+  validerCreationOperationInvestissement,
+  validerModificationOperationInvestissement,
+} from "../validators/operationInvestissement.validator.js"
 
-// Vérifier qu’une date existe réellement
-const dateEstValide = (date) => {
-  const formatDate = /^\d{4}-\d{2}-\d{2}$/
+/*
+  Récupère toutes les opérations d’investissement.
 
-  if (!formatDate.test(date)) {
-    return false
+  Exemple :
+  GET /api/operations-investissement
+*/
+export const getOperationsInvestissement =
+  async (request, response) => {
+    try {
+      const operations =
+        await findAllOperationsInvestissement()
+
+      response.json(operations)
+    } catch (error) {
+      response.status(500).json({
+        message:
+          "Erreur lors de la récupération des opérations d’investissement",
+        error: error.message,
+      })
+    }
   }
 
-  const [annee, mois, jour] = date
-    .split("-")
-    .map(Number)
+/*
+  Récupère une opération précise grâce
+  à son identifiant.
 
-  const dateConstruite = new Date(
-    Date.UTC(annee, mois - 1, jour)
-  )
+  Exemple :
+  GET /api/operations-investissement/3
+*/
+export const getOperationInvestissementById =
+  async (request, response) => {
+    try {
+      const validation =
+        validerIdOperationInvestissement(
+          request.params.id
+        )
 
-  return (
-    dateConstruite.getUTCFullYear() === annee &&
-    dateConstruite.getUTCMonth() === mois - 1 &&
-    dateConstruite.getUTCDate() === jour
-  )
-}
+      if (!validation.estValide) {
+        return response.status(400).json({
+          message: validation.message,
+        })
+      }
 
-// Récupérer toutes les opérations
-export const getOperationsInvestissement = async (
-  request,
-  response
-) => {
-  try {
-    const operations =
-      await findAllOperationsInvestissement()
+      const operation =
+        await findOperationInvestissementById(
+          validation.donnees.id
+        )
 
-    response.json(operations)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la récupération des opérations d’investissement",
-      error: error.message,
-    })
+      if (!operation) {
+        return response.status(404).json({
+          message:
+            "Opération d’investissement introuvable",
+        })
+      }
+
+      response.json(operation)
+    } catch (error) {
+      response.status(500).json({
+        message:
+          "Erreur lors de la récupération de l’opération d’investissement",
+        error: error.message,
+      })
+    }
   }
-}
 
-// Récupérer une opération par son identifiant
-export const getOperationInvestissementById = async (
-  request,
-  response
-) => {
-  try {
-    const operationIdNombre = Number(
-      request.params.id
-    )
+/*
+  Crée une opération d’investissement.
 
-    if (
-      !Number.isInteger(operationIdNombre) ||
-      operationIdNombre <= 0
-    ) {
-      return response.status(400).json({
+  Le validateur :
+  - vérifie les identifiants ;
+  - transforme les valeurs numériques ;
+  - vérifie les quantités, prix et frais ;
+  - valide la date ;
+  - applique frais = 0 par défaut ;
+  - transforme type_operation en minuscules.
+*/
+export const postOperationInvestissement =
+  async (request, response) => {
+    try {
+      const validation =
+        validerCreationOperationInvestissement(
+          request.body
+        )
+
+      if (!validation.estValide) {
+        return response.status(400).json({
+          message: validation.message,
+        })
+      }
+
+      const nouvelleOperation =
+        await createOperationInvestissement(
+          validation.donnees
+        )
+
+      response
+        .status(201)
+        .json(nouvelleOperation)
+    } catch (error) {
+      /*
+        PostgreSQL 23503 :
+        une clé étrangère ne correspond
+        à aucune ligne existante.
+
+        Ici :
+        - compte inexistant ;
+        - actif financier inexistant.
+      */
+      if (error.code === "23503") {
+        return response.status(409).json({
+          message:
+            "Le compte ou l’actif financier indiqué n’existe pas",
+        })
+      }
+
+      response.status(500).json({
         message:
-          "L’identifiant de l’opération doit être un nombre entier supérieur à 0",
+          "Erreur lors de la création de l’opération d’investissement",
+        error: error.message,
       })
     }
-
-    const operation =
-      await findOperationInvestissementById(
-        operationIdNombre
-      )
-
-    if (!operation) {
-      return response.status(404).json({
-        message:
-          "Opération d’investissement introuvable",
-      })
-    }
-
-    response.json(operation)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la récupération de l’opération d’investissement",
-      error: error.message,
-    })
   }
-}
 
-// Créer une opération
-export const postOperationInvestissement = async (
-  request,
-  response
-) => {
-  try {
-    const {
-      compte_id,
-      actif_financier_id,
-      type_operation,
-      quantite,
-      prix_unitaire,
-      frais = 0,
-      date_operation,
-    } = request.body
+/*
+  Modifie entièrement une opération existante.
 
-    if (
-      compte_id === undefined ||
-      actif_financier_id === undefined ||
-      type_operation === undefined ||
-      quantite === undefined ||
-      prix_unitaire === undefined ||
-      date_operation === undefined
-    ) {
-      return response.status(400).json({
+  PUT exige toutes les données principales,
+  y compris les frais.
+*/
+export const putOperationInvestissement =
+  async (request, response) => {
+    try {
+      const validationId =
+        validerIdOperationInvestissement(
+          request.params.id
+        )
+
+      if (!validationId.estValide) {
+        return response.status(400).json({
+          message: validationId.message,
+        })
+      }
+
+      const validationDonnees =
+        validerModificationOperationInvestissement(
+          request.body
+        )
+
+      if (!validationDonnees.estValide) {
+        return response.status(400).json({
+          message:
+            validationDonnees.message,
+        })
+      }
+
+      const operationModifiee =
+        await updateOperationInvestissement(
+          validationId.donnees.id,
+          validationDonnees.donnees
+        )
+
+      if (!operationModifiee) {
+        return response.status(404).json({
+          message:
+            "Opération d’investissement introuvable",
+        })
+      }
+
+      response.json(operationModifiee)
+    } catch (error) {
+      if (error.code === "23503") {
+        return response.status(409).json({
+          message:
+            "Le compte ou l’actif financier indiqué n’existe pas",
+        })
+      }
+
+      response.status(500).json({
         message:
-          "compte_id, actif_financier_id, type_operation, quantite, prix_unitaire et date_operation sont obligatoires",
+          "Erreur lors de la modification de l’opération d’investissement",
+        error: error.message,
       })
     }
-
-    const compteIdNombre = Number(compte_id)
-
-    const actifFinancierIdNombre =
-      Number(actif_financier_id)
-
-    const quantiteNombre = Number(quantite)
-
-    const prixUnitaireNombre =
-      Number(prix_unitaire)
-
-    const fraisNombre = Number(frais)
-
-    if (
-      !Number.isInteger(compteIdNombre) ||
-      compteIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "compte_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isInteger(actifFinancierIdNombre) ||
-      actifFinancierIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "actif_financier_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (!texteEstValide(type_operation)) {
-      return response.status(400).json({
-        message:
-          "type_operation doit être un texte non vide",
-      })
-    }
-
-    if (
-      !Number.isFinite(quantiteNombre) ||
-      quantiteNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "quantite doit être un nombre supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isFinite(prixUnitaireNombre) ||
-      prixUnitaireNombre < 0
-    ) {
-      return response.status(400).json({
-        message:
-          "prix_unitaire doit être un nombre supérieur ou égal à 0",
-      })
-    }
-
-    if (
-      !Number.isFinite(fraisNombre) ||
-      fraisNombre < 0
-    ) {
-      return response.status(400).json({
-        message:
-          "frais doit être un nombre supérieur ou égal à 0",
-      })
-    }
-
-    if (!dateEstValide(date_operation)) {
-      return response.status(400).json({
-        message:
-          "date_operation doit être une date valide au format AAAA-MM-JJ",
-      })
-    }
-
-    const nouvelleOperation =
-      await createOperationInvestissement({
-        compte_id: compteIdNombre,
-        actif_financier_id:
-          actifFinancierIdNombre,
-        type_operation:
-          type_operation.trim().toLowerCase(),
-        quantite: quantiteNombre,
-        prix_unitaire: prixUnitaireNombre,
-        frais: fraisNombre,
-        date_operation,
-      })
-
-    response.status(201).json(nouvelleOperation)
-  } catch (error) {
-    if (error.code === "23503") {
-      return response.status(409).json({
-        message:
-          "Le compte ou l’actif financier indiqué n’existe pas",
-      })
-    }
-
-    response.status(500).json({
-      message:
-        "Erreur lors de la création de l’opération d’investissement",
-      error: error.message,
-    })
   }
-}
 
-// Modifier une opération
-export const putOperationInvestissement = async (
-  request,
-  response
-) => {
-  try {
-    const operationIdNombre = Number(
-      request.params.id
-    )
+/*
+  Supprime une opération grâce à son identifiant.
 
-    if (
-      !Number.isInteger(operationIdNombre) ||
-      operationIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "L’identifiant de l’opération doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    const {
-      compte_id,
-      actif_financier_id,
-      type_operation,
-      quantite,
-      prix_unitaire,
-      frais,
-      date_operation,
-    } = request.body
-
-    if (
-      compte_id === undefined ||
-      actif_financier_id === undefined ||
-      type_operation === undefined ||
-      quantite === undefined ||
-      prix_unitaire === undefined ||
-      frais === undefined ||
-      date_operation === undefined
-    ) {
-      return response.status(400).json({
-        message:
-          "compte_id, actif_financier_id, type_operation, quantite, prix_unitaire, frais et date_operation sont obligatoires",
-      })
-    }
-
-    const compteIdNombre = Number(compte_id)
-
-    const actifFinancierIdNombre =
-      Number(actif_financier_id)
-
-    const quantiteNombre = Number(quantite)
-
-    const prixUnitaireNombre =
-      Number(prix_unitaire)
-
-    const fraisNombre = Number(frais)
-
-    if (
-      !Number.isInteger(compteIdNombre) ||
-      compteIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "compte_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isInteger(actifFinancierIdNombre) ||
-      actifFinancierIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "actif_financier_id doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    if (!texteEstValide(type_operation)) {
-      return response.status(400).json({
-        message:
-          "type_operation doit être un texte non vide",
-      })
-    }
-
-    if (
-      !Number.isFinite(quantiteNombre) ||
-      quantiteNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "quantite doit être un nombre supérieur à 0",
-      })
-    }
-
-    if (
-      !Number.isFinite(prixUnitaireNombre) ||
-      prixUnitaireNombre < 0
-    ) {
-      return response.status(400).json({
-        message:
-          "prix_unitaire doit être un nombre supérieur ou égal à 0",
-      })
-    }
-
-    if (
-      !Number.isFinite(fraisNombre) ||
-      fraisNombre < 0
-    ) {
-      return response.status(400).json({
-        message:
-          "frais doit être un nombre supérieur ou égal à 0",
-      })
-    }
-
-    if (!dateEstValide(date_operation)) {
-      return response.status(400).json({
-        message:
-          "date_operation doit être une date valide au format AAAA-MM-JJ",
-      })
-    }
-
-    const operationModifiee =
-      await updateOperationInvestissement(
-        operationIdNombre,
-        {
-          compte_id: compteIdNombre,
-          actif_financier_id:
-            actifFinancierIdNombre,
-          type_operation:
-            type_operation.trim().toLowerCase(),
-          quantite: quantiteNombre,
-          prix_unitaire: prixUnitaireNombre,
-          frais: fraisNombre,
-          date_operation,
-        }
-      )
-
-    if (!operationModifiee) {
-      return response.status(404).json({
-        message:
-          "Opération d’investissement introuvable",
-      })
-    }
-
-    response.json(operationModifiee)
-  } catch (error) {
-    if (error.code === "23503") {
-      return response.status(409).json({
-        message:
-          "Le compte ou l’actif financier indiqué n’existe pas",
-      })
-    }
-
-    response.status(500).json({
-      message:
-        "Erreur lors de la modification de l’opération d’investissement",
-      error: error.message,
-    })
-  }
-}
-
-// Supprimer une opération
+  Le service renvoie la ligne supprimée grâce
+  à la clause SQL RETURNING *.
+*/
 export const deleteOperationInvestissementById =
   async (request, response) => {
     try {
-      const operationIdNombre = Number(
-        request.params.id
-      )
+      const validation =
+        validerIdOperationInvestissement(
+          request.params.id
+        )
 
-      if (
-        !Number.isInteger(operationIdNombre) ||
-        operationIdNombre <= 0
-      ) {
+      if (!validation.estValide) {
         return response.status(400).json({
-          message:
-            "L’identifiant de l’opération doit être un nombre entier supérieur à 0",
+          message: validation.message,
         })
       }
 
       const operationSupprimee =
         await deleteOperationInvestissement(
-          operationIdNombre
+          validation.donnees.id
         )
 
       if (!operationSupprimee) {

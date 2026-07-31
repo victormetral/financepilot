@@ -1,3 +1,33 @@
+/*
+  CONTRÔLEUR DES CATÉGORIES
+
+  Ce fichier orchestre les requêtes HTTP liées
+  aux catégories.
+
+  Routes concernées :
+  - GET    /api/categories
+  - GET    /api/categories/:id
+  - POST   /api/categories
+  - PUT    /api/categories/:id
+  - DELETE /api/categories/:id
+
+  Répartition des responsabilités :
+
+  categorie.controller.js
+  → orchestre les requêtes HTTP
+
+  categorie.validator.js
+  → valide, transforme et nettoie les données
+
+  categorie.service.js
+  → exécute les requêtes SQL
+
+  Victor :
+  si une règle concernant le nom,
+  le type ou les identifiants change,
+  modifie d’abord categorie.validator.js.
+*/
+
 import {
   findAllCategories,
   findCategorieById,
@@ -6,22 +36,65 @@ import {
   deleteCategorie,
 } from "../services/categorie.service.js"
 
-export const getCategories = async (request, response) => {
+// 🟨 NOUVEAU : validations déplacées
+// dans un fichier spécialisé.
+import {
+  validerIdCategorie,
+  validerCreationCategorie,
+  validerModificationCategorie,
+} from "../validators/categorie.validator.js"
+
+/*
+  Récupère toutes les catégories.
+
+  Exemple :
+  GET /api/categories
+*/
+export const getCategories = async (
+  request,
+  response
+) => {
   try {
-    const categories = await findAllCategories()
+    const categories =
+      await findAllCategories()
 
     response.json(categories)
   } catch (error) {
     response.status(500).json({
-      message: "Erreur lors de la récupération des catégories",
+      message:
+        "Erreur lors de la récupération des catégories",
       error: error.message,
     })
   }
 }
 
-export const getCategorieById = async (request, response) => {
+/*
+  Récupère une catégorie précise grâce
+  à l’identifiant placé dans l’URL.
+
+  Exemple :
+  GET /api/categories/3
+*/
+export const getCategorieById = async (
+  request,
+  response
+) => {
   try {
-    const categorie = await findCategorieById(request.params.id)
+    const validation =
+      validerIdCategorie(
+        request.params.id
+      )
+
+    if (!validation.estValide) {
+      return response.status(400).json({
+        message: validation.message,
+      })
+    }
+
+    const categorie =
+      await findCategorieById(
+        validation.donnees.id
+      )
 
     if (!categorie) {
       return response.status(404).json({
@@ -32,35 +105,54 @@ export const getCategorieById = async (request, response) => {
     response.json(categorie)
   } catch (error) {
     response.status(500).json({
-      message: "Erreur lors de la récupération de la catégorie",
+      message:
+        "Erreur lors de la récupération de la catégorie",
       error: error.message,
     })
   }
 }
 
-export const postCategorie = async (request, response) => {
-  try {
-    const {
-      utilisateur_id,
-      nom,
-      type_categorie,
-    } = request.body
+/*
+  Crée une nouvelle catégorie.
 
-    if (!utilisateur_id || !nom || !type_categorie) {
+  Le validateur :
+  - vérifie utilisateur_id ;
+  - vérifie nom ;
+  - vérifie type_categorie ;
+  - retire les espaces inutiles.
+*/
+export const postCategorie = async (
+  request,
+  response
+) => {
+  try {
+    const validation =
+      validerCreationCategorie(
+        request.body
+      )
+
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "utilisateur_id, nom et type_categorie sont obligatoires",
+        message: validation.message,
       })
     }
 
-    const nouvelleCategorie = await createCategorie({
-      utilisateur_id,
-      nom,
-      type_categorie,
-    })
+    const nouvelleCategorie =
+      await createCategorie(
+        validation.donnees
+      )
 
-    response.status(201).json(nouvelleCategorie)
+    response
+      .status(201)
+      .json(nouvelleCategorie)
   } catch (error) {
+    /*
+      PostgreSQL 23505 :
+      une contrainte UNIQUE est violée.
+
+      Cela signifie ici que cette catégorie
+      existe déjà pour cet utilisateur.
+    */
     if (error.code === "23505") {
       return response.status(409).json({
         message:
@@ -68,34 +160,68 @@ export const postCategorie = async (request, response) => {
       })
     }
 
+    /*
+      PostgreSQL 23503 :
+      utilisateur_id ne correspond
+      à aucun utilisateur existant.
+    */
+    if (error.code === "23503") {
+      return response.status(409).json({
+        message:
+          "L’utilisateur indiqué n’existe pas",
+      })
+    }
+
     response.status(500).json({
-      message: "Erreur lors de la création de la catégorie",
+      message:
+        "Erreur lors de la création de la catégorie",
       error: error.message,
     })
   }
 }
 
-export const putCategorie = async (request, response) => {
-  try {
-    const {
-      nom,
-      type_categorie,
-    } = request.body
+/*
+  Modifie entièrement une catégorie.
 
-    if (!nom || !type_categorie) {
+  PUT exige :
+  - nom ;
+  - type_categorie.
+
+  utilisateur_id reste inchangé.
+*/
+export const putCategorie = async (
+  request,
+  response
+) => {
+  try {
+    const validationId =
+      validerIdCategorie(
+        request.params.id
+      )
+
+    if (!validationId.estValide) {
       return response.status(400).json({
-        message:
-          "nom et type_categorie sont obligatoires",
+        message: validationId.message,
       })
     }
 
-    const categorieModifiee = await updateCategorie(
-      request.params.id,
-      {
-        nom,
-        type_categorie,
-      }
-    )
+    const validationDonnees =
+      validerModificationCategorie(
+        request.body
+      )
+
+    if (!validationDonnees.estValide) {
+      return response.status(400).json({
+        message:
+          validationDonnees.message,
+      })
+    }
+
+    const categorieModifiee =
+      await updateCategorie(
+        validationId.donnees.id,
+        validationDonnees.donnees
+      )
 
     if (!categorieModifiee) {
       return response.status(404).json({
@@ -120,11 +246,33 @@ export const putCategorie = async (request, response) => {
   }
 }
 
-export const removeCategorie = async (request, response) => {
+/*
+  Supprime une catégorie grâce
+  à son identifiant.
+
+  Le service renvoie la catégorie supprimée
+  grâce à la clause SQL RETURNING.
+*/
+export const removeCategorie = async (
+  request,
+  response
+) => {
   try {
-    const categorieSupprimee = await deleteCategorie(
-      request.params.id
-    )
+    const validation =
+      validerIdCategorie(
+        request.params.id
+      )
+
+    if (!validation.estValide) {
+      return response.status(400).json({
+        message: validation.message,
+      })
+    }
+
+    const categorieSupprimee =
+      await deleteCategorie(
+        validation.donnees.id
+      )
 
     if (!categorieSupprimee) {
       return response.status(404).json({
@@ -133,10 +281,20 @@ export const removeCategorie = async (request, response) => {
     }
 
     response.json({
-      message: "Catégorie supprimée avec succès",
+      message:
+        "Catégorie supprimée avec succès",
       categorie: categorieSupprimee,
     })
   } catch (error) {
+    /*
+      PostgreSQL 23503 :
+      la catégorie est encore référencée
+      par une autre table.
+
+      Ici :
+      - des transactions ;
+      - ou des budgets.
+    */
     if (error.code === "23503") {
       return response.status(409).json({
         message:

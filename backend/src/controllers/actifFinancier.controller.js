@@ -1,3 +1,33 @@
+/*
+  CONTRÔLEUR DES ACTIFS FINANCIERS
+
+  Ce fichier orchestre les requêtes HTTP liées
+  aux actifs financiers.
+
+  Routes concernées :
+  - GET    /api/actifs-financiers
+  - GET    /api/actifs-financiers/:id
+  - POST   /api/actifs-financiers
+  - PUT    /api/actifs-financiers/:id
+  - DELETE /api/actifs-financiers/:id
+
+  Répartition des responsabilités :
+
+  actifFinancier.controller.js
+  → orchestre les requêtes HTTP
+
+  actifFinancier.validator.js
+  → valide, nettoie et transforme les données
+
+  actifFinancier.service.js
+  → exécute les requêtes SQL
+
+  Victor :
+  si une règle liée au symbole, à la devise
+  ou au type d’actif change,
+  modifie d’abord actifFinancier.validator.js.
+*/
+
 import {
   findAllActifsFinanciers,
   findActifFinancierById,
@@ -6,26 +36,19 @@ import {
   deleteActifFinancier,
 } from "../services/actifFinancier.service.js"
 
-// Types d’actifs autorisés
-const typesActifsAutorises = [
-  "action",
-  "etf",
-  "crypto",
-  "obligation",
-  "fonds",
-  "immobilier",
-  "autre",
-]
+// 🟨 NOUVEAU : validations déplacées dans un fichier spécialisé.
+import {
+  validerIdActifFinancier,
+  validerCreationActifFinancier,
+  validerModificationActifFinancier,
+} from "../validators/actifFinancier.validator.js"
 
-// Vérifier qu’un texte n’est pas vide
-const texteEstValide = (texte) => {
-  return (
-    typeof texte === "string" &&
-    texte.trim().length > 0
-  )
-}
+/*
+  Récupère tous les actifs financiers.
 
-// Récupérer tous les actifs financiers
+  Exemple :
+  GET /api/actifs-financiers
+*/
 export const getActifsFinanciers = async (
   request,
   response
@@ -44,29 +67,32 @@ export const getActifsFinanciers = async (
   }
 }
 
-// Récupérer un actif financier par son identifiant
+/*
+  Récupère un actif financier précis
+  grâce à son identifiant.
+
+  Exemple :
+  GET /api/actifs-financiers/3
+*/
 export const getActifFinancierById = async (
   request,
   response
 ) => {
   try {
-    const actifIdNombre = Number(
-      request.params.id
-    )
+    const validation =
+      validerIdActifFinancier(
+        request.params.id
+      )
 
-    if (
-      !Number.isInteger(actifIdNombre) ||
-      actifIdNombre <= 0
-    ) {
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "L’identifiant de l’actif financier doit être un nombre entier supérieur à 0",
+        message: validation.message,
       })
     }
 
     const actif =
       await findActifFinancierById(
-        actifIdNombre
+        validation.donnees.id
       )
 
     if (!actif) {
@@ -86,76 +112,46 @@ export const getActifFinancierById = async (
   }
 }
 
-// Créer un actif financier
+/*
+  Crée un actif financier.
+
+  Le validateur :
+  - vérifie les champs obligatoires ;
+  - applique EUR par défaut ;
+  - transforme symbole et devise en majuscules ;
+  - retire les espaces inutiles.
+*/
 export const postActifFinancier = async (
   request,
   response
 ) => {
   try {
-    const {
-      symbole,
-      nom,
-      type_actif,
-      devise = "EUR",
-    } = request.body
-
-    if (
-      symbole === undefined ||
-      nom === undefined ||
-      type_actif === undefined
-    ) {
-      return response.status(400).json({
-        message:
-          "symbole, nom et type_actif sont obligatoires",
-      })
-    }
-
-    if (!texteEstValide(symbole)) {
-      return response.status(400).json({
-        message:
-          "symbole doit être un texte non vide",
-      })
-    }
-
-    if (!texteEstValide(nom)) {
-      return response.status(400).json({
-        message:
-          "nom doit être un texte non vide",
-      })
-    }
-
-    if (
-      !typesActifsAutorises.includes(
-        type_actif
+    const validation =
+      validerCreationActifFinancier(
+        request.body
       )
-    ) {
-      return response.status(400).json({
-        message:
-          "type_actif doit être action, etf, crypto, obligation, fonds, immobilier ou autre",
-      })
-    }
 
-    if (!texteEstValide(devise)) {
+    if (!validation.estValide) {
       return response.status(400).json({
-        message:
-          "devise doit être un texte non vide",
+        message: validation.message,
       })
     }
 
     const nouvelActif =
-      await createActifFinancier({
-        symbole: symbole
-          .trim()
-          .toUpperCase(),
-        nom: nom.trim(),
-        type_actif,
-        devise: devise
-          .trim()
-          .toUpperCase(),
-      })
+      await createActifFinancier(
+        validation.donnees
+      )
 
     response.status(201).json(nouvelActif)
   } catch (error) {
+    /*
+      PostgreSQL 23505 :
+      une valeur soumise à une contrainte UNIQUE
+      existe déjà.
+
+      Exemple possible :
+      symbole déjà enregistré.
+    */
     if (error.code === "23505") {
       return response.status(409).json({
         message:
@@ -171,90 +167,47 @@ export const postActifFinancier = async (
   }
 }
 
-// Modifier un actif financier
+/*
+  Modifie entièrement un actif financier.
+
+  PUT exige :
+  - symbole ;
+  - nom ;
+  - type_actif ;
+  - devise.
+*/
 export const putActifFinancier = async (
   request,
   response
 ) => {
   try {
-    const actifIdNombre = Number(
-      request.params.id
-    )
-
-    if (
-      !Number.isInteger(actifIdNombre) ||
-      actifIdNombre <= 0
-    ) {
-      return response.status(400).json({
-        message:
-          "L’identifiant de l’actif financier doit être un nombre entier supérieur à 0",
-      })
-    }
-
-    const {
-      symbole,
-      nom,
-      type_actif,
-      devise,
-    } = request.body
-
-    if (
-      symbole === undefined ||
-      nom === undefined ||
-      type_actif === undefined ||
-      devise === undefined
-    ) {
-      return response.status(400).json({
-        message:
-          "symbole, nom, type_actif et devise sont obligatoires",
-      })
-    }
-
-    if (!texteEstValide(symbole)) {
-      return response.status(400).json({
-        message:
-          "symbole doit être un texte non vide",
-      })
-    }
-
-    if (!texteEstValide(nom)) {
-      return response.status(400).json({
-        message:
-          "nom doit être un texte non vide",
-      })
-    }
-
-    if (
-      !typesActifsAutorises.includes(
-        type_actif
+    const validationId =
+      validerIdActifFinancier(
+        request.params.id
       )
-    ) {
+
+    if (!validationId.estValide) {
       return response.status(400).json({
-        message:
-          "type_actif doit être action, etf, crypto, obligation, fonds, immobilier ou autre",
+        message: validationId.message,
       })
     }
 
-    if (!texteEstValide(devise)) {
+    const validationDonnees =
+      validerModificationActifFinancier(
+        request.body
+      )
+
+    if (!validationDonnees.estValide) {
       return response.status(400).json({
         message:
-          "devise doit être un texte non vide",
+          validationDonnees.message,
       })
     }
 
     const actifModifie =
       await updateActifFinancier(
-        actifIdNombre,
-        {
-          symbole: symbole
-            .trim()
-            .toUpperCase(),
-          nom: nom.trim(),
-          type_actif,
-          devise: devise
-            .trim()
-            .toUpperCase(),
-        }
+        validationId.donnees.id,
+        validationDonnees.donnees
       )
 
     if (!actifModifie) {
@@ -281,55 +234,63 @@ export const putActifFinancier = async (
   }
 }
 
-// Supprimer un actif financier
-export const deleteActifFinancierById = async (
-  request,
-  response
-) => {
-  try {
-    const actifIdNombre = Number(
-      request.params.id
-    )
+/*
+  Supprime un actif financier grâce
+  à son identifiant.
 
-    if (
-      !Number.isInteger(actifIdNombre) ||
-      actifIdNombre <= 0
-    ) {
-      return response.status(400).json({
+  Le service renvoie la ligne supprimée
+  grâce à RETURNING *.
+*/
+export const deleteActifFinancierById =
+  async (request, response) => {
+    try {
+      const validation =
+        validerIdActifFinancier(
+          request.params.id
+        )
+
+      if (!validation.estValide) {
+        return response.status(400).json({
+          message: validation.message,
+        })
+      }
+
+      const actifSupprime =
+        await deleteActifFinancier(
+          validation.donnees.id
+        )
+
+      if (!actifSupprime) {
+        return response.status(404).json({
+          message:
+            "Actif financier introuvable",
+        })
+      }
+
+      response.json({
         message:
-          "L’identifiant de l’actif financier doit être un nombre entier supérieur à 0",
+          "Actif financier supprimé",
+        actif: actifSupprime,
+      })
+    } catch (error) {
+      /*
+        PostgreSQL 23503 :
+        l’actif est encore référencé par une autre table.
+
+        Ici :
+        une opération d’investissement utilise cet actif.
+      */
+      if (error.code === "23503") {
+        return response.status(409).json({
+          message:
+            "Cet actif financier est utilisé par une opération d’investissement",
+        })
+      }
+
+      response.status(500).json({
+        message:
+          "Erreur lors de la suppression de l’actif financier",
+        error: error.message,
       })
     }
-
-    const actifSupprime =
-      await deleteActifFinancier(
-        actifIdNombre
-      )
-
-    if (!actifSupprime) {
-      return response.status(404).json({
-        message:
-          "Actif financier introuvable",
-      })
-    }
-
-    response.json({
-      message:
-        "Actif financier supprimé",
-      actif: actifSupprime,
-    })
-  } catch (error) {
-    if (error.code === "23503") {
-      return response.status(409).json({
-        message:
-          "Cet actif financier est utilisé par une opération d’investissement",
-      })
-    }
-
-    response.status(500).json({
-      message:
-        "Erreur lors de la suppression de l’actif financier",
-      error: error.message,
-    })
   }
-}

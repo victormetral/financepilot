@@ -1,7 +1,38 @@
+/*
+  SERVICE DES UTILISATEURS
+
+  Ce fichier contient les requêtes SQL liées
+  aux utilisateurs de FinancePilot.
+
+  Utilisé par :
+  - utilisateur.controller.js
+
+  Son rôle :
+  - lire les utilisateurs ;
+  - rechercher un utilisateur par email ;
+  - créer, modifier et supprimer un utilisateur.
+
+  Règle de sécurité importante :
+  mot_de_passe ne doit jamais être renvoyé par les
+  fonctions destinées aux réponses publiques.
+
+  Exception :
+  findUtilisateurByEmail() renvoie le hash uniquement
+  pour permettre plus tard la vérification lors
+  de la connexion.
+
+  Victor :
+  évite SELECT * afin de contrôler précisément
+  les colonnes récupérées par chaque requête.
+*/
+
 import { pool } from "../config/database.js"
 
-// Récupérer tous les utilisateurs
-// Le mot de passe n’est jamais renvoyé
+/*
+  Récupère tous les utilisateurs.
+
+  Le hash du mot de passe est volontairement exclu.
+*/
 export const findAllUtilisateurs = async () => {
   const result = await pool.query(`
     SELECT
@@ -19,9 +50,14 @@ export const findAllUtilisateurs = async () => {
   return result.rows
 }
 
-// Récupérer un utilisateur par son identifiant
-// Le mot de passe n’est jamais renvoyé
-export const findUtilisateurById = async (id) => {
+/*
+  Récupère un utilisateur grâce à son identifiant.
+
+  Le hash du mot de passe est volontairement exclu.
+*/
+export const findUtilisateurById = async (
+  id
+) => {
   const result = await pool.query(
     `
       SELECT
@@ -39,15 +75,28 @@ export const findUtilisateurById = async (id) => {
   return result.rows[0]
 }
 
-// Récupérer un utilisateur par email
-// Cette fonction renvoie aussi le hash du mot de passe
-// Elle servira plus tard pour la connexion
+/*
+  Recherche un utilisateur grâce à son email.
+
+  Cette fonction renvoie volontairement mot_de_passe,
+  car le hash sera nécessaire plus tard pour comparer
+  le mot de passe envoyé lors de la connexion.
+
+  Cette fonction ne doit pas être utilisée directement
+  pour construire une réponse publique.
+*/
 export const findUtilisateurByEmail = async (
   email
 ) => {
   const result = await pool.query(
     `
-      SELECT *
+      SELECT
+        id,
+        nom,
+        prenom,
+        email,
+        mot_de_passe,
+        date_creation
       FROM utilisateur
       WHERE email = $1
     `,
@@ -57,7 +106,14 @@ export const findUtilisateurByEmail = async (
   return result.rows[0]
 }
 
-// Créer un utilisateur
+/*
+  Crée un utilisateur.
+
+  mot_de_passe contient déjà un hash produit
+  par bcrypt dans le contrôleur.
+
+  RETURNING exclut volontairement le hash.
+*/
 export const createUtilisateur = async ({
   nom,
   prenom,
@@ -91,7 +147,14 @@ export const createUtilisateur = async ({
   return result.rows[0]
 }
 
-// Modifier un utilisateur
+/*
+  Modifie entièrement un utilisateur.
+
+  Le nouveau mot de passe doit déjà être haché
+  avant l’appel de cette fonction.
+
+  RETURNING exclut volontairement le hash.
+*/
 export const updateUtilisateur = async (
   id,
   {
@@ -129,9 +192,17 @@ export const updateUtilisateur = async (
   return result.rows[0]
 }
 
-// Supprimer un utilisateur
-// Le mot de passe n’est pas renvoyé
-export const deleteUtilisateur = async (id) => {
+/*
+  Supprime un utilisateur grâce à son identifiant.
+
+  RETURNING permet au contrôleur de confirmer
+  précisément quel utilisateur a été supprimé.
+
+  Le hash du mot de passe est volontairement exclu.
+*/
+export const deleteUtilisateur = async (
+  id
+) => {
   const result = await pool.query(
     `
       DELETE FROM utilisateur
