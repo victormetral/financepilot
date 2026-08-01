@@ -29,6 +29,10 @@
 */
 
 import {
+  estErreurCleEtrangere,
+} from "../utils/postgres.utils.js"
+
+import {
   findAllOperationsInvestissement,
   findOperationInvestissementById,
   createOperationInvestissement,
@@ -151,7 +155,7 @@ export const postOperationInvestissement =
         - compte inexistant ;
         - actif financier inexistant.
       */
-      if (error.code === "23503") {
+      if (estErreurCleEtrangere(error)) {
         return response.status(409).json({
           message:
             "Le compte ou l’actif financier indiqué n’existe pas",
@@ -213,7 +217,7 @@ export const putOperationInvestissement =
 
       response.json(operationModifiee)
     } catch (error) {
-      if (error.code === "23503") {
+      if (estErreurCleEtrangere(error)) {
         return response.status(409).json({
           message:
             "Le compte ou l’actif financier indiqué n’existe pas",

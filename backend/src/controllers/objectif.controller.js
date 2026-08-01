@@ -27,6 +27,10 @@
 */
 
 import {
+  estErreurCleEtrangere,
+} from "../utils/postgres.utils.js"
+
+import {
   findAllObjectifs,
   findObjectifById,
   createObjectif,
@@ -145,7 +149,7 @@ export const postObjectif = async (
       Ici, cela signifie généralement que
       utilisateur_id ne correspond à aucun utilisateur.
     */
-    if (error.code === "23503") {
+    if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
           "L’utilisateur indiqué n’existe pas",
@@ -207,7 +211,7 @@ export const putObjectif = async (
 
     response.json(objectifModifie)
   } catch (error) {
-    if (error.code === "23503") {
+    if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
           "L’utilisateur indiqué n’existe pas",

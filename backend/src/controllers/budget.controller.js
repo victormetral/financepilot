@@ -30,6 +30,11 @@
 */
 
 import {
+  estErreurCleEtrangere,
+  estErreurDoublon,
+} from "../utils/postgres.utils.js"
+
+import {
   findAllBudgets,
   findBudgetById,
   createBudget,
@@ -244,7 +249,7 @@ export const postBudget = async (
       - l’utilisateur n’existe pas ;
       - ou la catégorie n’existe pas.
     */
-    if (error.code === "23503") {
+    if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
           "L’utilisateur ou la catégorie indiqué n’existe pas",
@@ -259,7 +264,7 @@ export const postBudget = async (
       budgets identiques pour une même catégorie,
       un même utilisateur, un même mois et une même année.
     */
-    if (error.code === "23505") {
+    if (estErreurDoublon(error)) {
       return response.status(409).json({
         message:
           "Un budget existe déjà pour cette catégorie et cette période",
@@ -325,14 +330,14 @@ export const putBudget = async (
 
     response.json(budgetModifie)
   } catch (error) {
-    if (error.code === "23503") {
+    if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
           "L’utilisateur ou la catégorie indiqué n’existe pas",
       })
     }
 
-    if (error.code === "23505") {
+    if (estErreurDoublon(error)) {
       return response.status(409).json({
         message:
           "Un budget existe déjà pour cette catégorie et cette période",

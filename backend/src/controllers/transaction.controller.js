@@ -26,6 +26,10 @@
 */
 
 import {
+  estErreurCleEtrangere,
+} from "../utils/postgres.utils.js"
+
+import {
   findAllTransactions,
   findTransactionById,
   createTransaction,
@@ -211,7 +215,7 @@ export const postTransaction = async (
       PostgreSQL 23503 :
       le compte ou la catégorie référencée n’existe pas.
     */
-    if (error.code === "23503") {
+    if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
           "Le compte ou la catégorie indiqué n’existe pas",
@@ -268,7 +272,7 @@ export const putTransaction = async (
 
     response.json(transactionModifiee)
   } catch (error) {
-    if (error.code === "23503") {
+    if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
           "Le compte ou la catégorie indiqué n’existe pas",

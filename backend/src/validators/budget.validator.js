@@ -27,6 +27,11 @@
 */
 
 import {
+  validationReussie,
+  validationEchouee,
+} from "../utils/validator.utils.js"
+
+import {
   entierPositifEstValide,
   nombrePositifEstValide,
   moisEstValide,
@@ -39,42 +44,6 @@ import {
   pageEstValide,
   calculerOffset,
 } from "../utils/pagination.utils.js"
-
-/*
-  Construit le résultat d’une validation réussie.
-
-  Exemple :
-
-  {
-    estValide: true,
-    donnees: {
-      utilisateur_id: 1
-    }
-  }
-*/
-const validationReussie = (donnees) => {
-  return {
-    estValide: true,
-    donnees,
-  }
-}
-
-/*
-  Construit le résultat d’une validation échouée.
-
-  Exemple :
-
-  {
-    estValide: false,
-    message: "mois invalide"
-  }
-*/
-const validationEchouee = (message) => {
-  return {
-    estValide: false,
-    message,
-  }
-}
 
 /*
   Convertit un paramètre facultatif en nombre.

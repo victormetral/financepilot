@@ -26,6 +26,11 @@
 */
 
 import {
+  validationReussie,
+  validationEchouee,
+} from "../utils/validator.utils.js"
+
+import {
   dateEstValide,
 } from "../utils/date.utils.js"
 
@@ -35,26 +40,6 @@ import {
   nombrePositifOuNulEstValide,
   texteEstValide,
 } from "../utils/validation.utils.js"
-
-/*
-  Construit une validation réussie.
-*/
-const validationReussie = (donnees) => {
-  return {
-    estValide: true,
-    donnees,
-  }
-}
-
-/*
-  Construit une validation échouée.
-*/
-const validationEchouee = (message) => {
-  return {
-    estValide: false,
-    message,
-  }
-}
 
 /*
   Vérifie l’identifiant d’une opération reçu dans l’URL.

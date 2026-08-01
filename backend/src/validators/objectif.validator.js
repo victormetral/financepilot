@@ -25,6 +25,11 @@
 */
 
 import {
+  validationReussie,
+  validationEchouee,
+} from "../utils/validator.utils.js"
+
+import {
   dateEstValide,
 } from "../utils/date.utils.js"
 
@@ -39,40 +44,6 @@ import {
 import {
   STATUTS_OBJECTIF_AUTORISES,
 } from "../constants/objectif.constants.js"
-
-/*
-  Construit une validation réussie.
-
-  Exemple :
-
-  {
-    estValide: true,
-    donnees: {...}
-  }
-*/
-const validationReussie = (donnees) => {
-  return {
-    estValide: true,
-    donnees,
-  }
-}
-
-/*
-  Construit une validation échouée.
-
-  Exemple :
-
-  {
-    estValide: false,
-    message: "montant invalide"
-  }
-*/
-const validationEchouee = (message) => {
-  return {
-    estValide: false,
-    message,
-  }
-}
 
 /*
   Vérifie l’identifiant d’un objectif reçu dans l’URL.

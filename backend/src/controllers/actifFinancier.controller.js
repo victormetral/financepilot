@@ -29,6 +29,11 @@
 */
 
 import {
+  estErreurCleEtrangere,
+  estErreurDoublon,
+} from "../utils/postgres.utils.js"
+
+import {
   findAllActifsFinanciers,
   findActifFinancierById,
   createActifFinancier,
@@ -152,7 +157,7 @@ export const postActifFinancier = async (
       Exemple possible :
       symbole déjà enregistré.
     */
-    if (error.code === "23505") {
+    if (estErreurDoublon(error)) {
       return response.status(409).json({
         message:
           "Cet actif financier existe déjà",
@@ -219,7 +224,7 @@ export const putActifFinancier = async (
 
     response.json(actifModifie)
   } catch (error) {
-    if (error.code === "23505") {
+    if (estErreurDoublon(error)) {
       return response.status(409).json({
         message:
           "Cet actif financier existe déjà",
@@ -280,7 +285,7 @@ export const deleteActifFinancierById =
         Ici :
         une opération d’investissement utilise cet actif.
       */
-      if (error.code === "23503") {
+      if (estErreurCleEtrangere(error)) {
         return response.status(409).json({
           message:
             "Cet actif financier est utilisé par une opération d’investissement",

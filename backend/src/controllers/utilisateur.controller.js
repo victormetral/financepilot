@@ -40,6 +40,11 @@
   spécialisé pour l’authentification.
 */
 
+import {
+  estErreurCleEtrangere,
+  estErreurDoublon,
+} from "../utils/postgres.utils.js"
+
 import bcrypt from "bcryptjs"
 
 import {
@@ -237,7 +242,7 @@ export const postUtilisateur = async (
       Deux requêtes simultanées pourraient en effet
       tenter de créer le même email.
     */
-    if (error.code === "23505") {
+    if (estErreurDoublon(error)) {
       return response.status(409).json({
         message:
           "Un utilisateur utilise déjà cet email",
@@ -360,7 +365,7 @@ export const putUtilisateur = async (
 
     response.json(utilisateurModifie)
   } catch (error) {
-    if (error.code === "23505") {
+    if (estErreurDoublon(error)) {
       return response.status(409).json({
         message:
           "Un utilisateur utilise déjà cet email",
@@ -425,7 +430,7 @@ export const deleteUtilisateurById = async (
       La suppression est refusée pour ne pas produire
       de données orphelines.
     */
-    if (error.code === "23503") {
+    if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
           "Cet utilisateur possède encore des comptes, catégories, budgets ou objectifs",

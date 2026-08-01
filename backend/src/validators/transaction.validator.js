@@ -26,6 +26,11 @@
 */
 
 import {
+  validationReussie,
+  validationEchouee,
+} from "../utils/validator.utils.js"
+
+import {
   dateEstValide,
   periodeEstValide,
 } from "../utils/date.utils.js"
@@ -46,38 +51,6 @@ import {
 import {
   TYPES_TRANSACTION_AUTORISES,
 } from "../constants/transaction.constants.js"
-
-/*
-  Construit une réponse de validation réussie.
-
-  Exemple :
-  {
-    estValide: true,
-    donnees: {...}
-  }
-*/
-const validationReussie = (donnees) => {
-  return {
-    estValide: true,
-    donnees,
-  }
-}
-
-/*
-  Construit une réponse de validation échouée.
-
-  Exemple :
-  {
-    estValide: false,
-    message: "compte_id invalide"
-  }
-*/
-const validationEchouee = (message) => {
-  return {
-    estValide: false,
-    message,
-  }
-}
 
 /*
   Convertit une valeur facultative en nombre.

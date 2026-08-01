@@ -22,11 +22,22 @@
   compte.service.js
   → exécute les requêtes SQL
 
+  Convention de nommage :
+  - getComptes
+  - getCompteById
+  - postCompte
+  - putCompte
+  - deleteCompteById
+
   Victor :
   si une règle concernant les identifiants,
   le solde, la devise ou le type de compte change,
   modifie d’abord compte.validator.js.
 */
+
+import {
+  estErreurCleEtrangere,
+} from "../utils/postgres.utils.js"
 
 import {
   findAllComptes,
@@ -36,8 +47,6 @@ import {
   deleteCompte,
 } from "../services/compte.service.js"
 
-// 🟨 NOUVEAU : validations déplacées
-// dans un fichier spécialisé.
 import {
   validerIdCompte,
   validerCreationCompte,
@@ -101,7 +110,7 @@ export const postCompte = async (
       PostgreSQL 23503 :
       utilisateur_id ne correspond à aucun utilisateur.
     */
-    if (error.code === "23503") {
+    if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
           "L’utilisateur indiqué n’existe pas",
@@ -220,9 +229,12 @@ export const putCompte = async (
   Supprime un compte grâce à son identifiant.
 
   Le service renvoie le compte supprimé grâce
-  à la clause SQL RETURNING *.
+  à la clause SQL RETURNING.
+
+  🟨 NOM HARMONISÉ :
+  removeCompte devient deleteCompteById.
 */
-export const removeCompte = async (
+export const deleteCompteById = async (
   request,
   response
 ) => {
@@ -261,7 +273,7 @@ export const removeCompte = async (
       - des transactions ;
       - ou des opérations d’investissement.
     */
-    if (error.code === "23503") {
+    if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
           "Impossible de supprimer ce compte car il contient encore des transactions ou des opérations d’investissement",

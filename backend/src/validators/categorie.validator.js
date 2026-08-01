@@ -33,43 +33,14 @@
 */
 
 import {
+  validationReussie,
+  validationEchouee,
+} from "../utils/validator.utils.js"
+
+import {
   entierPositifEstValide,
   texteEstValide,
 } from "../utils/validation.utils.js"
-
-/*
-  Construit une validation réussie.
-
-  Exemple :
-
-  {
-    estValide: true,
-    donnees: {...}
-  }
-*/
-const validationReussie = (donnees) => {
-  return {
-    estValide: true,
-    donnees,
-  }
-}
-
-/*
-  Construit une validation échouée.
-
-  Exemple :
-
-  {
-    estValide: false,
-    message: "nom invalide"
-  }
-*/
-const validationEchouee = (message) => {
-  return {
-    estValide: false,
-    message,
-  }
-}
 
 /*
   Vérifie l’identifiant d’une catégorie

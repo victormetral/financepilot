@@ -29,6 +29,11 @@
 */
 
 import {
+  estErreurCleEtrangere,
+  estErreurDoublon,
+} from "../utils/postgres.utils.js"
+
+import {
   findAllCategories,
   findCategorieById,
   createCategorie,
@@ -153,7 +158,7 @@ export const postCategorie = async (
       Cela signifie ici que cette catégorie
       existe déjà pour cet utilisateur.
     */
-    if (error.code === "23505") {
+    if (estErreurDoublon(error)) {
       return response.status(409).json({
         message:
           "Cette catégorie existe déjà pour cet utilisateur",
@@ -165,7 +170,7 @@ export const postCategorie = async (
       utilisateur_id ne correspond
       à aucun utilisateur existant.
     */
-    if (error.code === "23503") {
+    if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
           "L’utilisateur indiqué n’existe pas",
@@ -231,7 +236,7 @@ export const putCategorie = async (
 
     response.json(categorieModifiee)
   } catch (error) {
-    if (error.code === "23505") {
+    if (estErreurDoublon(error)) {
       return response.status(409).json({
         message:
           "Cette catégorie existe déjà pour cet utilisateur",
@@ -253,7 +258,7 @@ export const putCategorie = async (
   Le service renvoie la catégorie supprimée
   grâce à la clause SQL RETURNING.
 */
-export const removeCategorie = async (
+export const deleteCategorieById = async (
   request,
   response
 ) => {
@@ -295,7 +300,7 @@ export const removeCategorie = async (
       - des transactions ;
       - ou des budgets.
     */
-    if (error.code === "23503") {
+    if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
           "Impossible de supprimer cette catégorie car elle est encore utilisée dans des transactions ou des budgets",
