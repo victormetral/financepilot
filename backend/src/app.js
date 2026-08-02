@@ -33,6 +33,10 @@ import express from "express"
 import cors from "cors"
 import dotenv from "dotenv"
 
+// 🟨 NOUVEAU
+// Importe les routes de connexion.
+import authRoutes from "./routes/auth.routes.js"
+
 import utilisateurRoutes from "./routes/utilisateur.routes.js"
 import compteRoutes from "./routes/compte.routes.js"
 import categorieRoutes from "./routes/categorie.routes.js"
@@ -45,8 +49,9 @@ import operationInvestissementRoutes from "./routes/operationInvestissement.rout
 /*
   Charge les variables présentes dans le fichier .env.
 
-  Exemple :
+  Exemples :
   PORT=3000
+  JWT_SECRET=cle_secrete
 */
 dotenv.config()
 
@@ -66,7 +71,7 @@ app.use(cors())
   Permet à Express de lire les corps de requêtes JSON.
 
   Exemple :
-  request.body.nom
+  request.body.email
 */
 app.use(express.json())
 
@@ -81,6 +86,24 @@ app.get("/", (request, response) => {
     message: "API FinancePilot opérationnelle",
   })
 })
+
+/*
+  Routes d’authentification.
+
+  Préfixe :
+  /api/auth
+
+  Chemin défini dans auth.routes.js :
+  /connexion
+
+  Route complète :
+  POST /api/auth/connexion
+*/
+// 🟨 NOUVEAU
+app.use(
+  "/api/auth",
+  authRoutes
+)
 
 /*
   Routes des utilisateurs.
