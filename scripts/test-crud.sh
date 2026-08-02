@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+ 
 # ============================================================
 # TEST CRUD COMPLET DE FINANCEPILOT
 # ============================================================
@@ -31,7 +31,7 @@
 # ============================================================
 
 set -e
-
+  
 API_URL="http://localhost:3000/api"
 
 # Identifiant unique utilisé pour éviter les doublons
