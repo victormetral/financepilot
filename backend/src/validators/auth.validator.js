@@ -19,13 +19,11 @@
   - envoyer directement une réponse HTTP.
 */
 
-// 🟨 NOUVEAU
 import {
   validationReussie,
   validationEchouee,
 } from "../utils/validator.utils.js"
 
-// 🟨 NOUVEAU
 import {
   emailEstValide,
   motDePasseEstValide,
@@ -41,14 +39,13 @@ import {
     "mot_de_passe": "MotDePasse123!"
   }
 
-  L’email est normalisé :
+  L’email est normalisé avant sa validation :
   - suppression des espaces extérieurs ;
   - conversion en minuscules.
 
   Le mot de passe n’est pas modifié :
   les espaces peuvent faire partie du mot de passe.
 */
-// 🟨 NOUVEAU
 export const validerConnexion = (body) => {
   const {
     email,
@@ -68,7 +65,26 @@ export const validerConnexion = (body) => {
     )
   }
 
-  if (!emailEstValide(email)) {
+  /*
+    On vérifie le type avant d’utiliser trim().
+    Sinon, une valeur non textuelle provoquerait
+    une erreur JavaScript.
+  */
+  if (typeof email !== "string") { // 🟨 NOUVEAU
+    return validationEchouee(
+      "email doit avoir un format valide"
+    )
+  }
+
+  /*
+    L’email doit être nettoyé avant sa validation.
+    Exemple :
+    "  TEST@EMAIL.COM  " devient "test@email.com".
+  */
+  const emailNormalise =
+    email.trim().toLowerCase() // 🟨 NOUVEAU
+
+  if (!emailEstValide(emailNormalise)) { // 🟨 CORRIGÉ
     return validationEchouee(
       "email doit avoir un format valide"
     )
@@ -86,7 +102,7 @@ export const validerConnexion = (body) => {
   }
 
   return validationReussie({
-    email: email.trim().toLowerCase(),
+    email: emailNormalise, // 🟨 CORRIGÉ
     mot_de_passe,
   })
 }
