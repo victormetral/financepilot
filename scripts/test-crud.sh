@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
- 
+
 # ============================================================
 # TEST CRUD COMPLET DE FINANCEPILOT
 # ============================================================
@@ -31,8 +31,17 @@
 # ============================================================
 
 set -e
-  
+
 API_URL="http://localhost:3000/api"
+
+# 🟨 NOUVEAU
+# Fichier contenant la dernière réponse JSON reçue.
+FICHIER_REPONSE="/tmp/reponse-financepilot.json"
+
+# 🟨 NOUVEAU
+# Le jeton reste vide jusqu’à la connexion.
+# Dès qu’il reçoit une valeur, requete_http() l’envoie automatiquement.
+TOKEN=""
 
 # Identifiant unique utilisé pour éviter les doublons
 TIMESTAMP=$(date +%s)
@@ -61,6 +70,10 @@ verifier_code_http() {
     echo "❌ ÉCHEC : $nom_test"
     echo "Code attendu : $code_attendu"
     echo "Code reçu    : $code_recu"
+    echo
+    echo "Réponse reçue :"
+    cat "$FICHIER_REPONSE"
+    echo
     exit 1
   fi
 
@@ -70,7 +83,7 @@ verifier_code_http() {
 # ------------------------------------------------------------
 # Requête HTTP
 #
-# La réponse JSON est placée dans /tmp/reponse-financepilot.json.
+# La réponse JSON est placée dans "$FICHIER_REPONSE".
 # Le code HTTP est renvoyé par la fonction.
 # ------------------------------------------------------------
 
@@ -79,17 +92,41 @@ requete_http() {
   url="$2"
   donnees="${3:-}"
 
-  if [ -n "$donnees" ]; then
-    curl -s \
-      -o /tmp/reponse-financepilot.json \
+  # 🟨 CORRIGÉ
+  # Données JSON + JWT : POST ou PUT protégé.
+  if [ -n "$donnees" ] && [ -n "$TOKEN" ]; then
+    curl -sS \
+      -o "$FICHIER_REPONSE" \
+      -w "%{http_code}" \
+      -X "$methode" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $TOKEN" \
+      -d "$donnees" \
+      "$url"
+
+  # Données JSON sans JWT : création publique et connexion.
+  elif [ -n "$donnees" ]; then
+    curl -sS \
+      -o "$FICHIER_REPONSE" \
       -w "%{http_code}" \
       -X "$methode" \
       -H "Content-Type: application/json" \
       -d "$donnees" \
       "$url"
+
+  # JWT sans données JSON : GET ou DELETE protégé.
+  elif [ -n "$TOKEN" ]; then
+    curl -sS \
+      -o "$FICHIER_REPONSE" \
+      -w "%{http_code}" \
+      -X "$methode" \
+      -H "Authorization: Bearer $TOKEN" \
+      "$url"
+
+  # Aucune donnée et aucun JWT : route publique de disponibilité.
   else
-    curl -s \
-      -o /tmp/reponse-financepilot.json \
+    curl -sS \
+      -o "$FICHIER_REPONSE" \
       -w "%{http_code}" \
       -X "$methode" \
       "$url"
@@ -113,7 +150,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-CODE_HTTP=$(requete_http "GET" "$API_URL/utilisateurs")
+CODE_HTTP=$(requete_http "GET" "http://localhost:3000/")
 
 verifier_code_http \
   "$CODE_HTTP" \
@@ -143,9 +180,42 @@ verifier_code_http \
   "201" \
   "Création utilisateur"
 
-UTILISATEUR_ID=$(jq -r '.id' /tmp/reponse-financepilot.json)
+UTILISATEUR_ID=$(jq -r '.id' "$FICHIER_REPONSE")
 
 echo "Utilisateur créé avec l’identifiant : $UTILISATEUR_ID"
+
+# ============================================================
+# AUTHENTIFICATION POUR LES ROUTES PROTÉGÉES
+# ============================================================
+
+# 🟨 NOUVEAU
+# La création de l’utilisateur est publique.
+# On se connecte ensuite pour obtenir le JWT nécessaire aux CRUD.
+afficher_etape "AUTHENTIFICATION POUR LES ROUTES PROTÉGÉES"
+
+CODE_HTTP=$(requete_http \
+  "POST" \
+  "$API_URL/auth/connexion" \
+  "{
+    \"email\": \"$EMAIL_TEST\",
+    \"mot_de_passe\": \"TestFinance123!\"
+  }")
+
+verifier_code_http \
+  "$CODE_HTTP" \
+  "200" \
+  "Connexion utilisateur"
+
+TOKEN=$(jq -r '.token' "$FICHIER_REPONSE")
+
+if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+  echo "❌ Le JWT est absent de la réponse de connexion."
+  echo "Réponse reçue :"
+  cat "$FICHIER_REPONSE"
+  exit 1
+fi
+
+echo "✅ JWT récupéré"
 
 CODE_HTTP=$(requete_http \
   "GET" \
@@ -193,7 +263,7 @@ verifier_code_http \
   "201" \
   "Création compte"
 
-COMPTE_ID=$(jq -r '.id' /tmp/reponse-financepilot.json)
+COMPTE_ID=$(jq -r '.id' "$FICHIER_REPONSE")
 
 echo "Compte créé avec l’identifiant : $COMPTE_ID"
 
@@ -241,7 +311,7 @@ verifier_code_http \
   "201" \
   "Création catégorie"
 
-CATEGORIE_ID=$(jq -r '.id' /tmp/reponse-financepilot.json)
+CATEGORIE_ID=$(jq -r '.id' "$FICHIER_REPONSE")
 
 echo "Catégorie créée avec l’identifiant : $CATEGORIE_ID"
 
@@ -292,7 +362,7 @@ verifier_code_http \
   "201" \
   "Création transaction"
 
-TRANSACTION_ID=$(jq -r '.id' /tmp/reponse-financepilot.json)
+TRANSACTION_ID=$(jq -r '.id' "$FICHIER_REPONSE")
 
 echo "Transaction créée avec l’identifiant : $TRANSACTION_ID"
 
@@ -347,7 +417,7 @@ verifier_code_http \
   "201" \
   "Création budget"
 
-BUDGET_ID=$(jq -r '.id' /tmp/reponse-financepilot.json)
+BUDGET_ID=$(jq -r '.id' "$FICHIER_REPONSE")
 
 echo "Budget créé avec l’identifiant : $BUDGET_ID"
 
@@ -399,7 +469,7 @@ verifier_code_http \
   "201" \
   "Création objectif"
 
-OBJECTIF_ID=$(jq -r '.id' /tmp/reponse-financepilot.json)
+OBJECTIF_ID=$(jq -r '.id' "$FICHIER_REPONSE")
 
 echo "Objectif créé avec l’identifiant : $OBJECTIF_ID"
 
@@ -452,7 +522,7 @@ verifier_code_http \
   "201" \
   "Création actif financier"
 
-ACTIF_ID=$(jq -r '.id' /tmp/reponse-financepilot.json)
+ACTIF_ID=$(jq -r '.id' "$FICHIER_REPONSE")
 
 echo "Actif créé avec l’identifiant : $ACTIF_ID"
 
@@ -504,7 +574,7 @@ verifier_code_http \
   "201" \
   "Création opération d’investissement"
 
-OPERATION_ID=$(jq -r '.id' /tmp/reponse-financepilot.json)
+OPERATION_ID=$(jq -r '.id' "$FICHIER_REPONSE")
 
 echo "Opération créée avec l’identifiant : $OPERATION_ID"
 
@@ -617,6 +687,7 @@ verifier_code_http \
   "200" \
   "Suppression utilisateur"
 
-rm -f /tmp/reponse-financepilot.json
+TOKEN=""
+rm -f "$FICHIER_REPONSE"
 
 afficher_etape "✅ LES 8 CRUD FONCTIONNENT"
