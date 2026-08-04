@@ -18,6 +18,10 @@
   - solde_initial = 0 ;
   - devise = "EUR".
 
+  Règle de sécurité :
+  - utilisateur_id ne vient jamais du body JSON ;
+  - il sera récupéré depuis le JWT par le contrôleur.
+
   Ce fichier ne doit pas :
   - utiliser request ou response ;
   - envoyer de statut HTTP ;
@@ -67,48 +71,37 @@ export const validerIdCompte = (id) => {
   Valide les données utilisées pour créer un compte.
 
   Champs obligatoires :
-  - utilisateur_id ;
   - nom ;
   - type_compte.
 
   Champs facultatifs :
   - solde_initial, avec 0 par défaut ;
   - devise, avec EUR par défaut.
+
+  🟨 CORRIGÉ :
+  utilisateur_id n’est plus demandé au client.
+  Il proviendra de l’utilisateur authentifié par JWT.
 */
 export const validerCreationCompte = (body) => {
+  // 🟨 CORRIGÉ : utilisateur_id a été retiré.
   const {
-    utilisateur_id,
     nom,
     type_compte,
     solde_initial = 0,
     devise = "EUR",
   } = body
 
+  // 🟨 CORRIGÉ
   if (
-    utilisateur_id === undefined ||
     nom === undefined ||
     type_compte === undefined
   ) {
     return validationEchouee(
-      "utilisateur_id, nom et type_compte sont obligatoires"
+      "nom et type_compte sont obligatoires"
     )
   }
 
-  /*
-    Les valeurs JSON peuvent être reçues sous forme
-    de nombres ou de textes.
-
-    Number() permet d’obtenir un format numérique commun
-    avant la validation.
-  */
-  const utilisateurId = Number(utilisateur_id)
   const soldeInitial = Number(solde_initial)
-
-  if (!entierPositifEstValide(utilisateurId)) {
-    return validationEchouee(
-      "utilisateur_id doit être un nombre entier supérieur à 0"
-    )
-  }
 
   if (!texteEstValide(nom)) {
     return validationEchouee(
@@ -150,14 +143,16 @@ export const validerCreationCompte = (body) => {
   }
 
   /*
-    Nettoyage des données avant envoi au service :
+    Nettoyage des données avant envoi au contrôleur :
 
     - retrait des espaces inutiles ;
     - type de compte en minuscules ;
     - devise en majuscules.
+
+    🟨 CORRIGÉ :
+    utilisateur_id est volontairement absent.
   */
   return validationReussie({
-    utilisateur_id: utilisateurId,
     nom: nom.trim(),
     type_compte:
       type_compte.trim().toLowerCase(),
@@ -176,8 +171,7 @@ export const validerCreationCompte = (body) => {
   - solde_initial ;
   - devise.
 
-  utilisateur_id n’est pas modifié par cette route,
-  conformément au fonctionnement actuel du service.
+  utilisateur_id n’est pas modifié par cette route.
 */
 export const validerModificationCompte = (
   body

@@ -29,6 +29,12 @@
   - putCompte
   - deleteCompteById
 
+  Règle de sécurité :
+  - l’identité de l’utilisateur vient du JWT ;
+  - elle est disponible dans request.utilisateur ;
+  - elle est transmise au service pour chaque requête ;
+  - elle ne doit jamais être choisie dans le body JSON.
+
   Victor :
   si une règle concernant les identifiants,
   le solde, la devise ou le type de compte change,
@@ -54,7 +60,8 @@ import {
 } from "../validators/compte.validator.js"
 
 /*
-  Récupère tous les comptes.
+  Récupère uniquement les comptes
+  de l’utilisateur authentifié.
 
   Exemple :
   GET /api/comptes
@@ -64,7 +71,19 @@ export const getComptes = async (
   response
 ) => {
   try {
-    const comptes = await findAllComptes()
+    /*
+      🟨 NOUVEAU
+
+      L’identifiant provient du JWT vérifié
+      par le middleware d’authentification.
+    */
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    // 🟨 CORRIGÉ : transmission au service.
+    const comptes = await findAllComptes(
+      utilisateurId
+    )
 
     response.json(comptes)
   } catch (error) {
@@ -80,12 +99,14 @@ export const getComptes = async (
   Crée un nouveau compte.
 
   Le validateur :
-  - vérifie utilisateur_id ;
   - valide les textes ;
   - transforme le solde en nombre ;
   - applique solde_initial = 0 par défaut ;
   - applique devise = EUR par défaut ;
   - normalise la devise en majuscules.
+
+  utilisateur_id vient du JWT vérifié
+  et non du body envoyé par le client.
 */
 export const postCompte = async (
   request,
@@ -101,19 +122,30 @@ export const postCompte = async (
       })
     }
 
+    /*
+      L’opérateur ... copie les données validées,
+      puis utilisateur_id est ajouté depuis le JWT.
+    */
+    const donneesCompte = {
+      ...validation.donnees,
+      utilisateur_id:
+        request.utilisateur.utilisateurId,
+    }
+
     const nouveauCompte =
-      await createCompte(validation.donnees)
+      await createCompte(donneesCompte)
 
     response.status(201).json(nouveauCompte)
   } catch (error) {
     /*
       PostgreSQL 23503 :
-      utilisateur_id ne correspond à aucun utilisateur.
+      l’utilisateur du JWT n’existe plus
+      dans la base de données.
     */
     if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
-          "L’utilisateur indiqué n’existe pas",
+          "L’utilisateur authentifié n’existe pas",
       })
     }
 
@@ -126,8 +158,8 @@ export const postCompte = async (
 }
 
 /*
-  Récupère un compte précis grâce
-  à l’identifiant placé dans l’URL.
+  Récupère un compte seulement s’il appartient
+  à l’utilisateur authentifié.
 
   Exemple :
   GET /api/comptes/3
@@ -146,8 +178,20 @@ export const getCompteById = async (
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    /*
+      🟨 CORRIGÉ
+
+      Le service reçoit :
+      - l’identifiant du compte ;
+      - l’identifiant de l’utilisateur connecté.
+    */
     const compte = await findCompteById(
-      validation.donnees.id
+      validation.donnees.id,
+      utilisateurId
     )
 
     if (!compte) {
@@ -167,7 +211,8 @@ export const getCompteById = async (
 }
 
 /*
-  Modifie entièrement un compte.
+  Modifie entièrement un compte
+  seulement s’il appartient à l’utilisateur.
 
   PUT exige :
   - nom ;
@@ -203,9 +248,22 @@ export const putCompte = async (
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    /*
+      🟨 CORRIGÉ
+
+      L’ordre des arguments correspond au service :
+      1. identifiant du compte ;
+      2. identifiant de l’utilisateur ;
+      3. nouvelles données du compte.
+    */
     const compteModifie =
       await updateCompte(
         validationId.donnees.id,
+        utilisateurId,
         validationDonnees.donnees
       )
 
@@ -226,13 +284,11 @@ export const putCompte = async (
 }
 
 /*
-  Supprime un compte grâce à son identifiant.
+  Supprime un compte seulement s’il appartient
+  à l’utilisateur authentifié.
 
   Le service renvoie le compte supprimé grâce
   à la clause SQL RETURNING.
-
-  🟨 NOM HARMONISÉ :
-  removeCompte devient deleteCompteById.
 */
 export const deleteCompteById = async (
   request,
@@ -248,9 +304,15 @@ export const deleteCompteById = async (
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    // 🟨 CORRIGÉ : transmission du propriétaire.
     const compteSupprime =
       await deleteCompte(
-        validation.donnees.id
+        validation.donnees.id,
+        utilisateurId
       )
 
     if (!compteSupprime) {
