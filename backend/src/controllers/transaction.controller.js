@@ -1,28 +1,32 @@
 /*
   CONTRÔLEUR DES TRANSACTIONS
 
-  Ce fichier orchestre les requêtes HTTP liées aux transactions.
+  Ce fichier orchestre les requêtes HTTP liées
+  aux transactions.
 
-  Il doit rester simple :
-  - récupérer request ;
-  - appeler transaction.validator.js ;
-  - appeler transaction.service.js ;
-  - renvoyer response.
+  Routes concernées :
+  - GET    /api/transactions
+  - GET    /api/transactions/:id
+  - POST   /api/transactions
+  - PUT    /api/transactions/:id
+  - DELETE /api/transactions/:id
 
   Répartition des responsabilités :
 
   transaction.controller.js
-  → orchestre la requête HTTP
+  → récupère les données HTTP
+  → récupère l’utilisateur depuis le JWT
 
   transaction.validator.js
   → valide et transforme les données
 
   transaction.service.js
   → exécute les requêtes SQL
+  → vérifie que les ressources appartiennent
+    à l’utilisateur authentifié
 
-  Victor :
-  si une règle de validation change, regarde d’abord dans
-  transaction.validator.js, pas dans ce contrôleur.
+  Règle de sécurité :
+  utilisateurId vient toujours du JWT.
 */
 
 import {
@@ -50,7 +54,8 @@ import {
 } from "../utils/pagination.utils.js"
 
 /*
-  Récupère les transactions avec les filtres et la pagination.
+  Récupère uniquement les transactions appartenant
+  à l’utilisateur authentifié.
 
   Exemple :
   GET /api/transactions?compte_id=1&limite=3&page=2
@@ -60,9 +65,10 @@ export const getTransactions = async (
   response
 ) => {
   try {
-    // Le validateur transforme et vérifie request.query.
     const validation =
-      validerFiltresTransactions(request.query)
+      validerFiltresTransactions(
+        request.query
+      )
 
     if (!validation.estValide) {
       return response.status(400).json({
@@ -82,16 +88,28 @@ export const getTransactions = async (
       offset,
     } = validation.donnees
 
-    const resultat = await findAllTransactions(
-      compteId,
-      categorieId,
-      typeTransaction,
-      dateDebut,
-      dateFin,
-      recherche,
-      limite,
-      offset
-    )
+    // 🟨 NOUVEAU : identité extraite du JWT.
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    /*
+      🟨 CORRIGÉ
+
+      utilisateurId devient le premier argument
+      envoyé au service.
+    */
+    const resultat =
+      await findAllTransactions(
+        utilisateurId,
+        compteId,
+        categorieId,
+        typeTransaction,
+        dateDebut,
+        dateFin,
+        recherche,
+        limite,
+        offset
+      )
 
     /*
       Une page supérieure au nombre total de pages
@@ -118,9 +136,9 @@ export const getTransactions = async (
     }
 
     response.json({
-      transactions: resultat.transactions,
+      transactions:
+        resultat.transactions,
 
-      // Construit toutes les informations de navigation.
       pagination: creerPagination({
         total: resultat.total,
         limite,
@@ -137,10 +155,8 @@ export const getTransactions = async (
 }
 
 /*
-  Récupère une transaction grâce à son identifiant.
-
-  Exemple :
-  GET /api/transactions/3
+  Récupère une transaction uniquement si son compte
+  appartient à l’utilisateur authentifié.
 */
 export const getTransactionById = async (
   request,
@@ -148,7 +164,9 @@ export const getTransactionById = async (
 ) => {
   try {
     const validation =
-      validerIdTransaction(request.params.id)
+      validerIdTransaction(
+        request.params.id
+      )
 
     if (!validation.estValide) {
       return response.status(400).json({
@@ -156,9 +174,15 @@ export const getTransactionById = async (
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    // 🟨 CORRIGÉ : vérification du propriétaire.
     const transaction =
       await findTransactionById(
-        validation.donnees.id
+        validation.donnees.id,
+        utilisateurId
       )
 
     if (!transaction) {
@@ -178,15 +202,11 @@ export const getTransactionById = async (
 }
 
 /*
-  Crée une transaction.
+  Crée une transaction uniquement avec :
 
-  Le validateur vérifie notamment :
-  - le compte ;
-  - la catégorie facultative ;
-  - le libellé ;
-  - le montant ;
-  - la date ;
-  - le type de transaction.
+  - un compte appartenant à l’utilisateur ;
+  - une catégorie lui appartenant également
+    ou aucune catégorie.
 */
 export const postTransaction = async (
   request,
@@ -194,7 +214,9 @@ export const postTransaction = async (
 ) => {
   try {
     const validation =
-      validerDonneesTransaction(request.body)
+      validerDonneesTransaction(
+        request.body
+      )
 
     if (!validation.estValide) {
       return response.status(400).json({
@@ -202,18 +224,37 @@ export const postTransaction = async (
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    // 🟨 CORRIGÉ
     const nouvelleTransaction =
       await createTransaction(
+        utilisateurId,
         validation.donnees
       )
 
-    response.status(201).json(
-      nouvelleTransaction
-    )
+    /*
+      🟨 NOUVEAU
+
+      Le service ne crée rien si le compte ou la catégorie
+      n’appartient pas à l’utilisateur authentifié.
+    */
+    if (!nouvelleTransaction) {
+      return response.status(404).json({
+        message:
+          "Compte ou catégorie introuvable",
+      })
+    }
+
+    response
+      .status(201)
+      .json(nouvelleTransaction)
   } catch (error) {
     /*
-      PostgreSQL 23503 :
-      le compte ou la catégorie référencée n’existe pas.
+      Cette erreur peut encore apparaître si une ressource
+      est supprimée entre la vérification et l’insertion.
     */
     if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
@@ -231,9 +272,12 @@ export const postTransaction = async (
 }
 
 /*
-  Modifie entièrement une transaction.
+  Modifie une transaction uniquement si :
 
-  PUT utilise les mêmes règles de validation que POST.
+  - la transaction appartient à l’utilisateur ;
+  - le nouveau compte lui appartient ;
+  - la nouvelle catégorie lui appartient
+    ou vaut null.
 */
 export const putTransaction = async (
   request,
@@ -241,7 +285,9 @@ export const putTransaction = async (
 ) => {
   try {
     const validationId =
-      validerIdTransaction(request.params.id)
+      validerIdTransaction(
+        request.params.id
+      )
 
     if (!validationId.estValide) {
       return response.status(400).json({
@@ -250,23 +296,40 @@ export const putTransaction = async (
     }
 
     const validationDonnees =
-      validerDonneesTransaction(request.body)
+      validerDonneesTransaction(
+        request.body
+      )
 
     if (!validationDonnees.estValide) {
       return response.status(400).json({
-        message: validationDonnees.message,
+        message:
+          validationDonnees.message,
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    /*
+      🟨 CORRIGÉ
+
+      Le service reçoit :
+      1. l’identifiant de la transaction ;
+      2. l’identifiant de l’utilisateur du JWT ;
+      3. les nouvelles données.
+    */
     const transactionModifiee =
       await updateTransaction(
         validationId.donnees.id,
+        utilisateurId,
         validationDonnees.donnees
       )
 
     if (!transactionModifiee) {
       return response.status(404).json({
-        message: "Transaction introuvable",
+        message:
+          "Transaction, compte ou catégorie introuvable",
       })
     }
 
@@ -288,10 +351,8 @@ export const putTransaction = async (
 }
 
 /*
-  Supprime une transaction grâce à son identifiant.
-
-  Le service renvoie la ligne supprimée grâce à
-  RETURNING *.
+  Supprime une transaction uniquement si son compte
+  appartient à l’utilisateur authentifié.
 */
 export const deleteTransactionById = async (
   request,
@@ -299,7 +360,9 @@ export const deleteTransactionById = async (
 ) => {
   try {
     const validation =
-      validerIdTransaction(request.params.id)
+      validerIdTransaction(
+        request.params.id
+      )
 
     if (!validation.estValide) {
       return response.status(400).json({
@@ -307,9 +370,15 @@ export const deleteTransactionById = async (
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    // 🟨 CORRIGÉ : vérification du propriétaire.
     const transactionSupprimee =
       await deleteTransaction(
-        validation.donnees.id
+        validation.donnees.id,
+        utilisateurId
       )
 
     if (!transactionSupprimee) {
@@ -320,7 +389,8 @@ export const deleteTransactionById = async (
 
     response.json({
       message: "Transaction supprimée",
-      transaction: transactionSupprimee,
+      transaction:
+        transactionSupprimee,
     })
   } catch (error) {
     response.status(500).json({
