@@ -8,18 +8,21 @@
   - utilisateur.controller.js
 
   Son rôle :
-  - lire les utilisateurs ;
+  - lire l’utilisateur authentifié ;
   - rechercher un utilisateur par email ;
   - créer, modifier et supprimer un utilisateur.
 
-  Règle de sécurité importante :
-  mot_de_passe ne doit jamais être renvoyé par les
-  fonctions destinées aux réponses publiques.
+  Règles de sécurité :
+  - un utilisateur ne peut consulter que son profil ;
+  - il ne peut modifier que son profil ;
+  - il ne peut supprimer que son profil ;
+  - l’identité fiable provient du JWT ;
+  - mot_de_passe ne doit jamais être renvoyé
+    dans une réponse publique.
 
   Exception :
   findUtilisateurByEmail() renvoie le hash uniquement
-  pour permettre plus tard la vérification lors
-  de la connexion.
+  pour permettre la connexion et vérifier les doublons.
 
   Victor :
   évite SELECT * afin de contrôler précisément
@@ -29,34 +32,16 @@
 import { pool } from "../config/database.js"
 
 /*
-  Récupère tous les utilisateurs.
+  Récupère uniquement l’utilisateur authentifié.
 
-  Le hash du mot de passe est volontairement exclu.
+  La route GET /api/utilisateurs conserve
+  une réponse sous forme de tableau.
+
+  🟨 CORRIGÉ :
+  elle ne renvoie plus tous les utilisateurs.
 */
-export const findAllUtilisateurs = async () => {
-  const result = await pool.query(`
-    SELECT
-      id,
-      nom,
-      prenom,
-      email,
-      date_creation
-    FROM utilisateur
-    ORDER BY
-      date_creation DESC,
-      id DESC
-  `)
-
-  return result.rows
-}
-
-/*
-  Récupère un utilisateur grâce à son identifiant.
-
-  Le hash du mot de passe est volontairement exclu.
-*/
-export const findUtilisateurById = async (
-  id
+export const findAllUtilisateurs = async (
+  utilisateurId
 ) => {
   const result = await pool.query(
     `
@@ -69,7 +54,43 @@ export const findUtilisateurById = async (
       FROM utilisateur
       WHERE id = $1
     `,
-    [id]
+    [utilisateurId]
+  )
+
+  return result.rows
+}
+
+/*
+  Recherche un utilisateur seulement lorsque :
+
+  - l’identifiant demandé dans l’URL correspond ;
+  - cet identifiant correspond aussi au JWT.
+
+  🟨 CORRIGÉ :
+  un utilisateur ne peut plus consulter
+  le profil d’un autre utilisateur.
+*/
+export const findUtilisateurById = async (
+  id,
+  utilisateurId
+) => {
+  const result = await pool.query(
+    `
+      SELECT
+        id,
+        nom,
+        prenom,
+        email,
+        date_creation
+      FROM utilisateur
+      WHERE id = $1
+        AND id = $2
+    `,
+    [
+      id,
+      // 🟨 NOUVEAU
+      utilisateurId,
+    ]
   )
 
   return result.rows[0]
@@ -79,11 +100,13 @@ export const findUtilisateurById = async (
   Recherche un utilisateur grâce à son email.
 
   Cette fonction renvoie volontairement mot_de_passe,
-  car le hash sera nécessaire plus tard pour comparer
-  le mot de passe envoyé lors de la connexion.
+  car le hash est nécessaire :
 
-  Cette fonction ne doit pas être utilisée directement
-  pour construire une réponse publique.
+  - pour vérifier la connexion ;
+  - pour vérifier les doublons d’email.
+
+  Cette fonction ne doit jamais être utilisée
+  directement pour construire une réponse publique.
 */
 export const findUtilisateurByEmail = async (
   email
@@ -148,7 +171,10 @@ export const createUtilisateur = async ({
 }
 
 /*
-  Modifie entièrement un utilisateur.
+  Modifie un utilisateur uniquement lorsque :
+
+  - l’identifiant demandé correspond ;
+  - l’identifiant appartient au JWT connecté.
 
   Le nouveau mot de passe doit déjà être haché
   avant l’appel de cette fonction.
@@ -157,6 +183,7 @@ export const createUtilisateur = async ({
 */
 export const updateUtilisateur = async (
   id,
+  utilisateurId,
   {
     nom,
     prenom,
@@ -173,6 +200,7 @@ export const updateUtilisateur = async (
         email = $3,
         mot_de_passe = $4
       WHERE id = $5
+        AND id = $6
       RETURNING
         id,
         nom,
@@ -186,6 +214,8 @@ export const updateUtilisateur = async (
       email,
       mot_de_passe,
       id,
+      // 🟨 NOUVEAU
+      utilisateurId,
     ]
   )
 
@@ -193,20 +223,23 @@ export const updateUtilisateur = async (
 }
 
 /*
-  Supprime un utilisateur grâce à son identifiant.
+  Supprime uniquement l’utilisateur authentifié.
 
-  RETURNING permet au contrôleur de confirmer
-  précisément quel utilisateur a été supprimé.
+  Les deux identifiants doivent correspondre :
+  - celui reçu dans l’URL ;
+  - celui contenu dans le JWT.
 
-  Le hash du mot de passe est volontairement exclu.
+  Le hash du mot de passe est exclu du résultat.
 */
 export const deleteUtilisateur = async (
-  id
+  id,
+  utilisateurId
 ) => {
   const result = await pool.query(
     `
       DELETE FROM utilisateur
       WHERE id = $1
+        AND id = $2
       RETURNING
         id,
         nom,
@@ -214,7 +247,11 @@ export const deleteUtilisateur = async (
         email,
         date_creation
     `,
-    [id]
+    [
+      id,
+      // 🟨 NOUVEAU
+      utilisateurId,
+    ]
   )
 
   return result.rows[0]

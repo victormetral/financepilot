@@ -15,6 +15,7 @@
 
   utilisateur.controller.js
   → orchestre les requêtes HTTP
+  → récupère l’identité depuis le JWT
   → vérifie les doublons d’email
   → hache les mots de passe
 
@@ -23,21 +24,17 @@
 
   utilisateur.service.js
   → exécute les requêtes SQL
+  → limite les opérations à l’utilisateur connecté
 
   bcryptjs
   → transforme le mot de passe en hash sécurisé
 
-  Règle de sécurité importante :
-  le mot de passe ne doit jamais apparaître
-  dans une réponse JSON, même lorsqu’il est haché.
-
-  Victor :
-  si une règle de validation change,
-  modifie d’abord utilisateur.validator.js.
-
-  Si la méthode de sécurisation des mots de passe change,
-  modifie ce contrôleur ou crée ensuite un service
-  spécialisé pour l’authentification.
+  Règles de sécurité :
+  - le mot de passe ne doit jamais apparaître
+    dans une réponse JSON ;
+  - l’identité fiable vient du JWT ;
+  - un utilisateur ne peut agir que sur son profil ;
+  - une donnée étrangère renvoie 404.
 */
 
 import {
@@ -56,21 +53,14 @@ import {
   deleteUtilisateur,
 } from "../services/utilisateur.service.js"
 
-// 🟨 NOUVEAU : validations déplacées dans un fichier spécialisé.
 import {
   validerIdUtilisateur,
   validerDonneesUtilisateur,
 } from "../validators/utilisateur.validator.js"
 
 /*
-  Nombre de tours utilisés par bcrypt pour générer
-  un hash plus coûteux à calculer.
-
-  Plus ce nombre est élevé :
-  - plus le hash est lent à produire ;
-  - plus les attaques par essais répétés sont coûteuses.
-
-  La valeur 10 conserve le comportement actuel.
+  Nombre de tours utilisés par bcrypt
+  pour produire le hash.
 */
 const NOMBRE_TOURS_HASH = 10
 
@@ -79,9 +69,6 @@ const NOMBRE_TOURS_HASH = 10
 
   Un hash est une représentation non réversible
   du mot de passe.
-
-  Le mot de passe original ne doit jamais être
-  enregistré directement dans PostgreSQL.
 */
 const hacherMotDePasse = async (
   motDePasse
@@ -93,21 +80,30 @@ const hacherMotDePasse = async (
 }
 
 /*
-  Récupère tous les utilisateurs.
+  Récupère uniquement l’utilisateur authentifié.
 
-  Exemple :
-  GET /api/utilisateurs
-
-  Le service doit sélectionner uniquement les champs
-  publics et ne jamais renvoyer mot_de_passe.
+  La réponse reste un tableau pour conserver
+  le fonctionnement actuel de la route GET /.
 */
 export const getUtilisateurs = async (
   request,
   response
 ) => {
   try {
+    /*
+      🟨 NOUVEAU
+
+      Cet identifiant vient du JWT vérifié
+      par auth.middleware.js.
+    */
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    // 🟨 CORRIGÉ : filtrage par utilisateur connecté.
     const utilisateurs =
-      await findAllUtilisateurs()
+      await findAllUtilisateurs(
+        utilisateurId
+      )
 
     response.json(utilisateurs)
   } catch (error) {
@@ -120,11 +116,8 @@ export const getUtilisateurs = async (
 }
 
 /*
-  Récupère un utilisateur précis grâce
-  à son identifiant.
-
-  Exemple :
-  GET /api/utilisateurs/3
+  Récupère un utilisateur seulement lorsque
+  l’identifiant demandé correspond au JWT.
 */
 export const getUtilisateurById = async (
   request,
@@ -142,9 +135,21 @@ export const getUtilisateurById = async (
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurIdConnecte =
+      request.utilisateur.utilisateurId
+
+    /*
+      🟨 CORRIGÉ
+
+      Le service reçoit :
+      - l’identifiant demandé dans l’URL ;
+      - l’identifiant fiable contenu dans le JWT.
+    */
     const utilisateur =
       await findUtilisateurById(
-        validation.donnees.id
+        validation.donnees.id,
+        utilisateurIdConnecte
       )
 
     if (!utilisateur) {
@@ -166,6 +171,8 @@ export const getUtilisateurById = async (
 /*
   Crée un nouvel utilisateur.
 
+  Cette route reste publique.
+
   Étapes :
   1. valider les données ;
   2. normaliser l’email ;
@@ -179,7 +186,9 @@ export const postUtilisateur = async (
 ) => {
   try {
     const validation =
-      validerDonneesUtilisateur(request.body)
+      validerDonneesUtilisateur(
+        request.body
+      )
 
     if (!validation.estValide) {
       return response.status(400).json({
@@ -194,10 +203,6 @@ export const postUtilisateur = async (
       mot_de_passe,
     } = validation.donnees
 
-    /*
-      Cette vérification permet de renvoyer un message
-      clair avant que PostgreSQL ne refuse le doublon.
-    */
     const utilisateurExistant =
       await findUtilisateurByEmail(email)
 
@@ -213,12 +218,6 @@ export const postUtilisateur = async (
         mot_de_passe
       )
 
-    /*
-      Seul le hash est envoyé au service.
-
-      Le mot de passe original n’est jamais envoyé
-      à PostgreSQL.
-    */
     const nouvelUtilisateur =
       await createUtilisateur({
         nom,
@@ -235,12 +234,6 @@ export const postUtilisateur = async (
       PostgreSQL 23505 :
       une valeur soumise à une contrainte UNIQUE
       existe déjà.
-
-      Cette sécurité reste nécessaire même si une
-      vérification a déjà été faite avant l’insertion.
-
-      Deux requêtes simultanées pourraient en effet
-      tenter de créer le même email.
     */
     if (estErreurDoublon(error)) {
       return response.status(409).json({
@@ -260,13 +253,14 @@ export const postUtilisateur = async (
 /*
   Modifie entièrement un utilisateur.
 
-  Étapes :
-  1. valider l’identifiant ;
-  2. vérifier que l’utilisateur existe ;
-  3. valider les nouvelles données ;
-  4. vérifier la disponibilité de l’email ;
-  5. hacher le nouveau mot de passe ;
-  6. modifier l’utilisateur.
+  L’identifiant de l’URL doit correspondre
+  à l’identifiant contenu dans le JWT.
+
+  PUT exige actuellement :
+  - nom ;
+  - prenom ;
+  - email ;
+  - mot_de_passe.
 */
 export const putUtilisateur = async (
   request,
@@ -284,16 +278,24 @@ export const putUtilisateur = async (
       })
     }
 
-    const utilisateurId =
+    const utilisateurIdDemande =
       validationId.donnees.id
 
+    // 🟨 NOUVEAU
+    const utilisateurIdConnecte =
+      request.utilisateur.utilisateurId
+
     /*
-      On vérifie l’existence avant les autres traitements
-      afin de renvoyer immédiatement une erreur 404.
+      🟨 CORRIGÉ
+
+      La recherche vérifie simultanément :
+      - l’identifiant demandé ;
+      - l’identité contenue dans le JWT.
     */
     const utilisateurActuel =
       await findUtilisateurById(
-        utilisateurId
+        utilisateurIdDemande,
+        utilisateurIdConnecte
       )
 
     if (!utilisateurActuel) {
@@ -325,15 +327,16 @@ export const putUtilisateur = async (
       await findUtilisateurByEmail(email)
 
     /*
-      Le même utilisateur peut conserver son email.
+      L’utilisateur connecté peut conserver
+      son adresse email actuelle.
 
-      L’erreur est renvoyée seulement lorsque l’email
-      appartient à un autre utilisateur.
+      Un email appartenant à un autre utilisateur
+      produit une erreur 409.
     */
     if (
       utilisateurAvecEmail &&
       utilisateurAvecEmail.id !==
-        utilisateurId
+        utilisateurIdConnecte
     ) {
       return response.status(409).json({
         message:
@@ -341,27 +344,37 @@ export const putUtilisateur = async (
       })
     }
 
-    /*
-      PUT exige actuellement un nouveau mot de passe.
-
-      Un nouveau hash est donc produit à chaque
-      modification complète.
-    */
     const motDePasseHash =
       await hacherMotDePasse(
         mot_de_passe
       )
 
+    /*
+      🟨 CORRIGÉ
+
+      Le service reçoit dans cet ordre :
+      1. l’identifiant demandé ;
+      2. l’identifiant provenant du JWT ;
+      3. les nouvelles données.
+    */
     const utilisateurModifie =
       await updateUtilisateur(
-        utilisateurId,
+        utilisateurIdDemande,
+        utilisateurIdConnecte,
         {
           nom,
           prenom,
           email,
-          mot_de_passe: motDePasseHash,
+          mot_de_passe:
+            motDePasseHash,
         }
       )
+
+    if (!utilisateurModifie) {
+      return response.status(404).json({
+        message: "Utilisateur introuvable",
+      })
+    }
 
     response.json(utilisateurModifie)
   } catch (error) {
@@ -381,14 +394,10 @@ export const putUtilisateur = async (
 }
 
 /*
-  Supprime un utilisateur grâce
-  à son identifiant.
+  Supprime uniquement l’utilisateur authentifié.
 
-  Le service renvoie l’utilisateur supprimé grâce
-  à la clause SQL RETURNING.
-
-  Le service doit impérativement exclure
-  mot_de_passe du résultat.
+  L’identifiant demandé dans l’URL doit correspondre
+  à l’identifiant contenu dans le JWT.
 */
 export const deleteUtilisateurById = async (
   request,
@@ -406,9 +415,21 @@ export const deleteUtilisateurById = async (
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurIdConnecte =
+      request.utilisateur.utilisateurId
+
+    /*
+      🟨 CORRIGÉ
+
+      La suppression exige la correspondance entre :
+      - l’identifiant de l’URL ;
+      - l’identifiant du JWT.
+    */
     const utilisateurSupprime =
       await deleteUtilisateur(
-        validation.donnees.id
+        validation.donnees.id,
+        utilisateurIdConnecte
       )
 
     if (!utilisateurSupprime) {
@@ -424,11 +445,10 @@ export const deleteUtilisateurById = async (
   } catch (error) {
     /*
       PostgreSQL 23503 :
-      l’utilisateur est encore référencé
-      par d’autres tables.
+      l’utilisateur possède encore des ressources.
 
-      La suppression est refusée pour ne pas produire
-      de données orphelines.
+      La suppression est refusée pour éviter
+      de produire des données orphelines.
     */
     if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
