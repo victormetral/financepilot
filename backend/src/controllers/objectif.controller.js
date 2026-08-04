@@ -1,34 +1,14 @@
 /*
-  CONTRÔLEUR DES OBJECTIFS FINANCIERS
+  CONTRÔLEUR DES OBJECTIFS
 
-  Ce fichier orchestre les requêtes HTTP liées aux objectifs.
+  Utilise :
+  - objectif.validator.js ;
+  - objectif.service.js ;
+  - request.utilisateur créé par le middleware JWT.
 
-  Il doit rester simple :
-  - récupérer les données de la requête ;
-  - appeler objectif.validator.js ;
-  - appeler objectif.service.js ;
-  - renvoyer la réponse HTTP.
-
-  Répartition des responsabilités :
-
-  objectif.controller.js
-  → orchestre les requêtes HTTP
-
-  objectif.validator.js
-  → valide et transforme les données
-
-  objectif.service.js
-  → exécute les requêtes SQL
-
-  Victor :
-  si une règle liée aux montants, aux dates,
-  aux statuts ou aux identifiants change,
-  modifie d’abord objectif.validator.js.
+  Règle de sécurité :
+  le propriétaire vient toujours du JWT.
 */
-
-import {
-  estErreurCleEtrangere,
-} from "../utils/postgres.utils.js"
 
 import {
   findAllObjectifs,
@@ -38,26 +18,21 @@ import {
   deleteObjectif,
 } from "../services/objectif.service.js"
 
-// 🟨 NOUVEAU : les validations sont déplacées
-// dans un fichier spécialisé.
 import {
   validerIdObjectif,
   validerCreationObjectif,
   validerModificationObjectif,
 } from "../validators/objectif.validator.js"
 
-/*
-  Récupère tous les objectifs financiers.
-
-  Exemple :
-  GET /api/objectifs
-*/
 export const getObjectifs = async (
   request,
   response
 ) => {
   try {
-    const objectifs = await findAllObjectifs()
+    // 🟨 CORRIGÉ : liste limitée à l'utilisateur JWT.
+    const objectifs = await findAllObjectifs(
+      request.utilisateur.utilisateurId
+    )
 
     response.json(objectifs)
   } catch (error) {
@@ -69,21 +44,11 @@ export const getObjectifs = async (
   }
 }
 
-/*
-  Récupère un objectif précis grâce à son identifiant.
-
-  Exemple :
-  GET /api/objectifs/3
-*/
 export const getObjectifById = async (
   request,
   response
 ) => {
   try {
-    /*
-      Le validateur transforme l’identifiant reçu
-      sous forme de texte en nombre, puis le vérifie.
-    */
     const validation =
       validerIdObjectif(request.params.id)
 
@@ -93,8 +58,10 @@ export const getObjectifById = async (
       })
     }
 
+    // 🟨 CORRIGÉ : identifiant + propriétaire.
     const objectif = await findObjectifById(
-      validation.donnees.id
+      validation.donnees.id,
+      request.utilisateur.utilisateurId
     )
 
     if (!objectif) {
@@ -113,16 +80,6 @@ export const getObjectifById = async (
   }
 }
 
-/*
-  Crée un nouvel objectif.
-
-  Le validateur de création gère notamment
-  les valeurs par défaut :
-
-  - montant_actuel = 0 ;
-  - date_echeance = null ;
-  - statut = "en cours".
-*/
 export const postObjectif = async (
   request,
   response
@@ -137,25 +94,14 @@ export const postObjectif = async (
       })
     }
 
-    const nouvelObjectif =
-      await createObjectif(validation.donnees)
+    // 🟨 CORRIGÉ : utilisateurId vient du JWT.
+    const nouvelObjectif = await createObjectif(
+      request.utilisateur.utilisateurId,
+      validation.donnees
+    )
 
     response.status(201).json(nouvelObjectif)
   } catch (error) {
-    /*
-      PostgreSQL 23503 :
-      une clé étrangère ne correspond à aucune ligne.
-
-      Ici, cela signifie généralement que
-      utilisateur_id ne correspond à aucun utilisateur.
-    */
-    if (estErreurCleEtrangere(error)) {
-      return response.status(409).json({
-        message:
-          "L’utilisateur indiqué n’existe pas",
-      })
-    }
-
     response.status(500).json({
       message:
         "Erreur lors de la création de l’objectif",
@@ -164,14 +110,6 @@ export const postObjectif = async (
   }
 }
 
-/*
-  Modifie entièrement un objectif existant.
-
-  PUT attend toutes les données principales.
-
-  L’identifiant et le contenu JSON sont validés
-  séparément pour produire des messages précis.
-*/
 export const putObjectif = async (
   request,
   response
@@ -187,9 +125,7 @@ export const putObjectif = async (
     }
 
     const validationDonnees =
-      validerModificationObjectif(
-        request.body
-      )
+      validerModificationObjectif(request.body)
 
     if (!validationDonnees.estValide) {
       return response.status(400).json({
@@ -197,11 +133,12 @@ export const putObjectif = async (
       })
     }
 
-    const objectifModifie =
-      await updateObjectif(
-        validationId.donnees.id,
-        validationDonnees.donnees
-      )
+    // 🟨 CORRIGÉ : modification limitée au propriétaire.
+    const objectifModifie = await updateObjectif(
+      validationId.donnees.id,
+      request.utilisateur.utilisateurId,
+      validationDonnees.donnees
+    )
 
     if (!objectifModifie) {
       return response.status(404).json({
@@ -211,13 +148,6 @@ export const putObjectif = async (
 
     response.json(objectifModifie)
   } catch (error) {
-    if (estErreurCleEtrangere(error)) {
-      return response.status(409).json({
-        message:
-          "L’utilisateur indiqué n’existe pas",
-      })
-    }
-
     response.status(500).json({
       message:
         "Erreur lors de la modification de l’objectif",
@@ -226,12 +156,6 @@ export const putObjectif = async (
   }
 }
 
-/*
-  Supprime un objectif grâce à son identifiant.
-
-  Le service renvoie l’objectif supprimé grâce
-  à la clause SQL RETURNING *.
-*/
 export const deleteObjectifById = async (
   request,
   response
@@ -246,10 +170,11 @@ export const deleteObjectifById = async (
       })
     }
 
-    const objectifSupprime =
-      await deleteObjectif(
-        validation.donnees.id
-      )
+    // 🟨 CORRIGÉ : suppression limitée au propriétaire.
+    const objectifSupprime = await deleteObjectif(
+      validation.donnees.id,
+      request.utilisateur.utilisateurId
+    )
 
     if (!objectifSupprime) {
       return response.status(404).json({

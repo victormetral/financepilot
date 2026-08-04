@@ -1,29 +1,12 @@
 /*
   VALIDATEUR DES BUDGETS
 
-  Ce fichier centralise les règles de validation liées
-  aux budgets mensuels de FinancePilot.
-
-  Il est utilisé par :
+  Utilisé par :
   - budget.controller.js
 
-  Son rôle :
-  - valider les identifiants ;
-  - convertir les paramètres reçus sous forme de texte ;
-  - valider les filtres GET ;
-  - valider les données POST et PUT ;
-  - calculer les paramètres nécessaires à la pagination.
-
-  Ce fichier ne doit pas :
-  - recevoir directement request ou response ;
-  - envoyer de statut HTTP ;
-  - exécuter de requête SQL ;
-  - connaître le fonctionnement de PostgreSQL.
-
-  Il renvoie toujours un objet indiquant :
-  - si la validation a réussi ;
-  - les données transformées ;
-  - ou le message d’erreur.
+  Règle de sécurité :
+  utilisateur_id ne vient plus du JSON ni de l'URL.
+  Il est lu dans le JWT par le contrôleur.
 */
 
 import {
@@ -45,32 +28,12 @@ import {
   calculerOffset,
 } from "../utils/pagination.utils.js"
 
-/*
-  Convertit un paramètre facultatif en nombre.
-
-  Les paramètres présents dans request.query arrivent
-  toujours sous forme de texte.
-
-  Exemples :
-  "3"       → 3
-  undefined → undefined
-*/
 const convertirNombreFacultatif = (valeur) => {
   return valeur !== undefined
     ? Number(valeur)
     : undefined
 }
 
-/*
-  Vérifie l’identifiant d’un budget reçu dans l’URL.
-
-  Exemple :
-  GET /api/budgets/4
-
-  L’identifiant doit être :
-  - un nombre entier ;
-  - strictement supérieur à zéro.
-*/
 export const validerIdBudget = (id) => {
   const idNombre = Number(id)
 
@@ -80,46 +43,24 @@ export const validerIdBudget = (id) => {
     )
   }
 
-  return validationReussie({
-    id: idNombre,
-  })
+  return validationReussie({ id: idNombre })
 }
 
 /*
-  Valide les filtres de la route :
+  Valide uniquement les filtres métier.
 
-  GET /api/budgets
-
-  Filtres facultatifs acceptés :
-  - utilisateur_id ;
-  - categorie_id ;
-  - mois ;
-  - annee ;
-  - limite ;
-  - page.
-
-  Exemple :
-
-  /api/budgets?utilisateur_id=1&mois=7&annee=2026
+  🟨 CORRIGÉ :
+  utilisateur_id n'est plus un filtre accepté.
+  Un utilisateur reçoit toujours ses propres budgets.
 */
-export const validerFiltresBudgets = (
-  query
-) => {
+export const validerFiltresBudgets = (query) => {
   const {
-    utilisateur_id,
     categorie_id,
     mois,
     annee,
     limite,
     page,
   } = query
-
-  /*
-    Chaque filtre numérique facultatif est converti
-    uniquement lorsqu’il a été envoyé.
-  */
-  const utilisateurId =
-    convertirNombreFacultatif(utilisateur_id)
 
   const categorieId =
     convertirNombreFacultatif(categorie_id)
@@ -133,19 +74,7 @@ export const validerFiltresBudgets = (
   const {
     limiteNombre,
     pageNombre,
-  } = convertirPagination({
-    limite,
-    page,
-  })
-
-  if (
-    utilisateurId !== undefined &&
-    !entierPositifEstValide(utilisateurId)
-  ) {
-    return validationEchouee(
-      "utilisateur_id doit être un nombre entier supérieur à 0"
-    )
-  }
+  } = convertirPagination({ limite, page })
 
   if (
     categorieId !== undefined &&
@@ -186,46 +115,26 @@ export const validerFiltresBudgets = (
     )
   }
 
-  /*
-    L’offset indique au service SQL combien de lignes
-    doivent être ignorées avant de commencer la page.
-
-    Exemple :
-    page 3 avec une limite de 20
-    → offset = 40
-  */
-  const offset =
-    calculerOffset(pageNombre, limiteNombre)
-
   return validationReussie({
-    utilisateurId,
     categorieId,
     mois: moisNombre,
     annee: anneeNombre,
     limite: limiteNombre,
     page: pageNombre,
-    offset,
+    offset: calculerOffset(
+      pageNombre,
+      limiteNombre
+    ),
   })
 }
 
 /*
-  Valide les données nécessaires à la création
-  ou à la modification complète d’un budget.
-
-  Cette fonction est commune à :
-  - POST /api/budgets ;
-  - PUT /api/budgets/:id.
-
-  Champs obligatoires :
-  - utilisateur_id ;
-  - categorie_id ;
-  - montant_limite ;
-  - mois ;
-  - annee.
+  🟨 CORRIGÉ :
+  utilisateur_id a été retiré des données attendues.
+  Le client ne choisit jamais le propriétaire.
 */
 export const validerDonneesBudget = (body) => {
   const {
-    utilisateur_id,
     categorie_id,
     montant_limite,
     mois,
@@ -233,35 +142,20 @@ export const validerDonneesBudget = (body) => {
   } = body
 
   if (
-    utilisateur_id === undefined ||
     categorie_id === undefined ||
     montant_limite === undefined ||
     mois === undefined ||
     annee === undefined
   ) {
     return validationEchouee(
-      "utilisateur_id, categorie_id, montant_limite, mois et annee sont obligatoires"
+      "categorie_id, montant_limite, mois et annee sont obligatoires"
     )
   }
 
-  /*
-    Les valeurs JSON peuvent être envoyées sous forme
-    de nombres ou de textes.
-
-    Number() permet d’obtenir un format numérique commun
-    avant la validation.
-  */
-  const utilisateurId = Number(utilisateur_id)
   const categorieId = Number(categorie_id)
   const montantLimite = Number(montant_limite)
   const moisNombre = Number(mois)
   const anneeNombre = Number(annee)
-
-  if (!entierPositifEstValide(utilisateurId)) {
-    return validationEchouee(
-      "utilisateur_id doit être un nombre entier supérieur à 0"
-    )
-  }
 
   if (!entierPositifEstValide(categorieId)) {
     return validationEchouee(
@@ -269,17 +163,6 @@ export const validerDonneesBudget = (body) => {
     )
   }
 
-  /*
-    Un budget doit avoir une limite strictement positive.
-
-    Exemples valides :
-    100
-    500.50
-
-    Exemples invalides :
-    0
-    -50
-  */
   if (!nombrePositifEstValide(montantLimite)) {
     return validationEchouee(
       "montant_limite doit être un nombre supérieur à 0"
@@ -298,12 +181,7 @@ export const validerDonneesBudget = (body) => {
     )
   }
 
-  /*
-    Le contrôleur recevra directement des données propres
-    et prêtes à être transmises au service.
-  */
   return validationReussie({
-    utilisateur_id: utilisateurId,
     categorie_id: categorieId,
     montant_limite: montantLimite,
     mois: moisNombre,

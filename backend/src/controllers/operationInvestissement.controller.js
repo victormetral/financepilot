@@ -1,31 +1,13 @@
 /*
-  CONTRÔLEUR DES OPÉRATIONS D’INVESTISSEMENT
+  CONTRÔLEUR DES OPÉRATIONS D'INVESTISSEMENT
 
-  Ce fichier orchestre les requêtes HTTP liées
-  aux opérations d’investissement.
+  Utilise :
+  - operationInvestissement.validator.js ;
+  - operationInvestissement.service.js ;
+  - request.utilisateur créé depuis le JWT.
 
-  Routes concernées :
-  - GET    /api/operations-investissement
-  - GET    /api/operations-investissement/:id
-  - POST   /api/operations-investissement
-  - PUT    /api/operations-investissement/:id
-  - DELETE /api/operations-investissement/:id
-
-  Répartition des responsabilités :
-
-  operationInvestissement.controller.js
-  → orchestre les requêtes HTTP
-
-  operationInvestissement.validator.js
-  → valide, transforme et nettoie les données
-
-  operationInvestissement.service.js
-  → exécute les requêtes SQL
-
-  Victor :
-  si une règle liée aux quantités, prix, frais,
-  dates ou identifiants change,
-  modifie d’abord le validateur.
+  Règle de propriété :
+  une opération appartient au propriétaire de son compte.
 */
 
 import {
@@ -40,24 +22,20 @@ import {
   deleteOperationInvestissement,
 } from "../services/operationInvestissement.service.js"
 
-// 🟨 NOUVEAU : validations déplacées dans un fichier spécialisé.
 import {
   validerIdOperationInvestissement,
   validerCreationOperationInvestissement,
   validerModificationOperationInvestissement,
 } from "../validators/operationInvestissement.validator.js"
 
-/*
-  Récupère toutes les opérations d’investissement.
-
-  Exemple :
-  GET /api/operations-investissement
-*/
 export const getOperationsInvestissement =
   async (request, response) => {
     try {
+      // 🟨 CORRIGÉ : liste limitée aux comptes du JWT.
       const operations =
-        await findAllOperationsInvestissement()
+        await findAllOperationsInvestissement(
+          request.utilisateur.utilisateurId
+        )
 
       response.json(operations)
     } catch (error) {
@@ -69,13 +47,6 @@ export const getOperationsInvestissement =
     }
   }
 
-/*
-  Récupère une opération précise grâce
-  à son identifiant.
-
-  Exemple :
-  GET /api/operations-investissement/3
-*/
 export const getOperationInvestissementById =
   async (request, response) => {
     try {
@@ -90,9 +61,11 @@ export const getOperationInvestissementById =
         })
       }
 
+      // 🟨 CORRIGÉ : identifiant + propriétaire.
       const operation =
         await findOperationInvestissementById(
-          validation.donnees.id
+          validation.donnees.id,
+          request.utilisateur.utilisateurId
         )
 
       if (!operation) {
@@ -112,17 +85,6 @@ export const getOperationInvestissementById =
     }
   }
 
-/*
-  Crée une opération d’investissement.
-
-  Le validateur :
-  - vérifie les identifiants ;
-  - transforme les valeurs numériques ;
-  - vérifie les quantités, prix et frais ;
-  - valide la date ;
-  - applique frais = 0 par défaut ;
-  - transforme type_operation en minuscules.
-*/
 export const postOperationInvestissement =
   async (request, response) => {
     try {
@@ -137,24 +99,24 @@ export const postOperationInvestissement =
         })
       }
 
+      // 🟨 CORRIGÉ : vérifie le propriétaire du compte.
       const nouvelleOperation =
         await createOperationInvestissement(
+          request.utilisateur.utilisateurId,
           validation.donnees
         )
+
+      if (!nouvelleOperation) {
+        return response.status(404).json({
+          message:
+            "Compte ou actif financier introuvable",
+        })
+      }
 
       response
         .status(201)
         .json(nouvelleOperation)
     } catch (error) {
-      /*
-        PostgreSQL 23503 :
-        une clé étrangère ne correspond
-        à aucune ligne existante.
-
-        Ici :
-        - compte inexistant ;
-        - actif financier inexistant.
-      */
       if (estErreurCleEtrangere(error)) {
         return response.status(409).json({
           message:
@@ -170,12 +132,6 @@ export const postOperationInvestissement =
     }
   }
 
-/*
-  Modifie entièrement une opération existante.
-
-  PUT exige toutes les données principales,
-  y compris les frais.
-*/
 export const putOperationInvestissement =
   async (request, response) => {
     try {
@@ -197,21 +153,22 @@ export const putOperationInvestissement =
 
       if (!validationDonnees.estValide) {
         return response.status(400).json({
-          message:
-            validationDonnees.message,
+          message: validationDonnees.message,
         })
       }
 
+      // 🟨 CORRIGÉ : opération et nouveau compte contrôlés.
       const operationModifiee =
         await updateOperationInvestissement(
           validationId.donnees.id,
+          request.utilisateur.utilisateurId,
           validationDonnees.donnees
         )
 
       if (!operationModifiee) {
         return response.status(404).json({
           message:
-            "Opération d’investissement introuvable",
+            "Opération, compte ou actif financier introuvable",
         })
       }
 
@@ -232,12 +189,6 @@ export const putOperationInvestissement =
     }
   }
 
-/*
-  Supprime une opération grâce à son identifiant.
-
-  Le service renvoie la ligne supprimée grâce
-  à la clause SQL RETURNING *.
-*/
 export const deleteOperationInvestissementById =
   async (request, response) => {
     try {
@@ -252,9 +203,11 @@ export const deleteOperationInvestissementById =
         })
       }
 
+      // 🟨 CORRIGÉ : suppression limitée au propriétaire.
       const operationSupprimee =
         await deleteOperationInvestissement(
-          validation.donnees.id
+          validation.donnees.id,
+          request.utilisateur.utilisateurId
         )
 
       if (!operationSupprimee) {

@@ -1,32 +1,13 @@
 /*
   CONTRÔLEUR DES BUDGETS
 
-  Ce fichier orchestre les requêtes HTTP liées aux budgets.
+  Utilise :
+  - budget.validator.js pour valider les entrées ;
+  - budget.service.js pour PostgreSQL ;
+  - request.utilisateur pour l'identité du JWT.
 
-  Il doit rester simple :
-  - récupérer les données de la requête ;
-  - appeler budget.validator.js ;
-  - appeler budget.service.js ;
-  - renvoyer la réponse HTTP.
-
-  Répartition des responsabilités :
-
-  budget.controller.js
-  → orchestre les requêtes HTTP
-
-  budget.validator.js
-  → valide et transforme les données
-
-  budget.service.js
-  → exécute les requêtes SQL
-
-  pagination.utils.js
-  → calcule les informations de pagination
-
-  Victor :
-  si une règle concernant les mois, les années,
-  les montants ou les identifiants change,
-  modifie d’abord budget.validator.js.
+  Règle de sécurité :
+  le client ne choisit jamais utilisateur_id.
 */
 
 import {
@@ -42,41 +23,23 @@ import {
   deleteBudget,
 } from "../services/budget.service.js"
 
-// 🟨 NOUVEAU : validations déplacées hors du contrôleur
 import {
   validerFiltresBudgets,
   validerIdBudget,
   validerDonneesBudget,
 } from "../validators/budget.validator.js"
 
-// 🟨 NOUVEAU : calculs de pagination centralisés
 import {
   creerPagination,
   pageExiste,
   calculerTotalPages,
 } from "../utils/pagination.utils.js"
 
-/*
-  Récupère les budgets avec des filtres facultatifs
-  et une pagination.
-
-  Exemple :
-  GET /api/budgets?utilisateur_id=1&mois=7&page=1
-*/
 export const getBudgets = async (
   request,
   response
 ) => {
   try {
-    /*
-      request.query contient les paramètres placés
-      après le point d’interrogation dans l’URL.
-
-      Le validateur :
-      - convertit les textes en nombres ;
-      - vérifie les filtres ;
-      - calcule l’offset.
-    */
     const validation =
       validerFiltresBudgets(request.query)
 
@@ -87,7 +50,6 @@ export const getBudgets = async (
     }
 
     const {
-      utilisateurId,
       categorieId,
       mois,
       annee,
@@ -96,14 +58,10 @@ export const getBudgets = async (
       offset,
     } = validation.donnees
 
-    /*
-      Le service récupère :
-      - les budgets de la page demandée ;
-      - le nombre total de budgets correspondants.
+    // 🟨 NOUVEAU : identité sûre issue du JWT.
+    const utilisateurId =
+      request.utilisateur.utilisateurId
 
-      La pagination complète est ensuite construite
-      dans le contrôleur.
-    */
     const resultat = await findAllBudgets(
       utilisateurId,
       categorieId,
@@ -113,13 +71,6 @@ export const getBudgets = async (
       offset
     )
 
-    /*
-      Une page inexistante est refusée.
-
-      Exemple :
-      - 3 pages disponibles ;
-      - page 20 demandée.
-    */
     if (
       !pageExiste({
         total: resultat.total,
@@ -127,11 +78,10 @@ export const getBudgets = async (
         limite,
       })
     ) {
-      const totalPages =
-        calculerTotalPages(
-          resultat.total,
-          limite
-        )
+      const totalPages = calculerTotalPages(
+        resultat.total,
+        limite
+      )
 
       return response.status(400).json({
         message:
@@ -142,17 +92,6 @@ export const getBudgets = async (
 
     response.json({
       budgets: resultat.budgets,
-
-      /*
-        creerPagination() renvoie notamment :
-        - total ;
-        - limite ;
-        - offset ;
-        - page ;
-        - total_pages ;
-        - previous_page ;
-        - next_page.
-      */
       pagination: creerPagination({
         total: resultat.total,
         limite,
@@ -168,13 +107,6 @@ export const getBudgets = async (
   }
 }
 
-/*
-  Récupère un budget précis grâce à l’identifiant
-  placé dans l’URL.
-
-  Exemple :
-  GET /api/budgets/3
-*/
 export const getBudgetById = async (
   request,
   response
@@ -189,8 +121,10 @@ export const getBudgetById = async (
       })
     }
 
+    // 🟨 CORRIGÉ : recherche limitée au propriétaire.
     const budget = await findBudgetById(
-      validation.donnees.id
+      validation.donnees.id,
+      request.utilisateur.utilisateurId
     )
 
     if (!budget) {
@@ -209,19 +143,6 @@ export const getBudgetById = async (
   }
 }
 
-/*
-  Crée un nouveau budget.
-
-  Le validateur vérifie :
-  - utilisateur_id ;
-  - categorie_id ;
-  - montant_limite ;
-  - mois ;
-  - annee.
-
-  Les données validées sont directement transmises
-  au service.
-*/
 export const postBudget = async (
   request,
   response
@@ -236,34 +157,26 @@ export const postBudget = async (
       })
     }
 
-    const nouveauBudget =
-      await createBudget(validation.donnees)
+    // 🟨 CORRIGÉ : le propriétaire vient du JWT.
+    const nouveauBudget = await createBudget(
+      request.utilisateur.utilisateurId,
+      validation.donnees
+    )
 
-    response.status(201).json(nouveauBudget)
-  } catch (error) {
-    /*
-      PostgreSQL 23503 :
-      une clé étrangère ne correspond à aucune ligne.
-
-      Ici, cela signifie généralement que :
-      - l’utilisateur n’existe pas ;
-      - ou la catégorie n’existe pas.
-    */
-    if (estErreurCleEtrangere(error)) {
-      return response.status(409).json({
-        message:
-          "L’utilisateur ou la catégorie indiqué n’existe pas",
+    if (!nouveauBudget) {
+      return response.status(404).json({
+        message: "Catégorie introuvable",
       })
     }
 
-    /*
-      PostgreSQL 23505 :
-      une contrainte d’unicité a été violée.
+    response.status(201).json(nouveauBudget)
+  } catch (error) {
+    if (estErreurCleEtrangere(error)) {
+      return response.status(409).json({
+        message: "La catégorie indiquée n’existe pas",
+      })
+    }
 
-      Cela peut arriver si la base interdit plusieurs
-      budgets identiques pour une même catégorie,
-      un même utilisateur, un même mois et une même année.
-    */
     if (estErreurDoublon(error)) {
       return response.status(409).json({
         message:
@@ -279,22 +192,11 @@ export const postBudget = async (
   }
 }
 
-/*
-  Modifie entièrement un budget existant.
-
-  PUT attend toutes les données principales du budget.
-  Pour une modification partielle, une route PATCH
-  serait plus adaptée.
-*/
 export const putBudget = async (
   request,
   response
 ) => {
   try {
-    /*
-      L’identifiant de l’URL et les données JSON
-      sont validés séparément.
-    */
     const validationId =
       validerIdBudget(request.params.id)
 
@@ -313,18 +215,17 @@ export const putBudget = async (
       })
     }
 
+    // 🟨 CORRIGÉ : propriétaire et catégorie contrôlés.
     const budgetModifie = await updateBudget(
       validationId.donnees.id,
+      request.utilisateur.utilisateurId,
       validationDonnees.donnees
     )
 
-    /*
-      Le service renvoie null ou undefined
-      lorsqu’aucun budget ne correspond à l’identifiant.
-    */
     if (!budgetModifie) {
       return response.status(404).json({
-        message: "Budget introuvable",
+        message:
+          "Budget ou catégorie introuvable",
       })
     }
 
@@ -332,8 +233,7 @@ export const putBudget = async (
   } catch (error) {
     if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
-        message:
-          "L’utilisateur ou la catégorie indiqué n’existe pas",
+        message: "La catégorie indiquée n’existe pas",
       })
     }
 
@@ -352,12 +252,6 @@ export const putBudget = async (
   }
 }
 
-/*
-  Supprime un budget grâce à son identifiant.
-
-  Le service renvoie le budget supprimé grâce
-  à la clause SQL RETURNING *.
-*/
 export const deleteBudgetById = async (
   request,
   response
@@ -372,10 +266,11 @@ export const deleteBudgetById = async (
       })
     }
 
-    const budgetSupprime =
-      await deleteBudget(
-        validation.donnees.id
-      )
+    // 🟨 CORRIGÉ : suppression limitée au propriétaire.
+    const budgetSupprime = await deleteBudget(
+      validation.donnees.id,
+      request.utilisateur.utilisateurId
+    )
 
     if (!budgetSupprime) {
       return response.status(404).json({
