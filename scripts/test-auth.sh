@@ -77,6 +77,9 @@ requete_http() {
   url="$2"
   donnees="${3:-}"
 
+  # 🟨 NOUVEAU
+  jeton="${4:-}"
+
   if [ -n "$donnees" ]; then
     curl -sS \
       -o "$FICHIER_REPONSE" \
@@ -84,6 +87,14 @@ requete_http() {
       -X "$methode" \
       -H "Content-Type: application/json" \
       -d "$donnees" \
+      "$url"
+  elif [ -n "$jeton" ]; then
+    # 🟨 NOUVEAU
+    curl -sS \
+      -o "$FICHIER_REPONSE" \
+      -w "%{http_code}" \
+      -X "$methode" \
+      -H "Authorization: Bearer $jeton" \
       "$url"
   else
     curl -sS \
@@ -183,7 +194,7 @@ fi
 
 CODE_HTTP=$(requete_http \
   "GET" \
-  "$API_URL/utilisateurs")
+  "http://localhost:3000/")
 
 verifier_code_http \
   "$CODE_HTTP" \
@@ -450,7 +461,9 @@ afficher_etape "10. SUPPRESSION DES DONNÉES DE TEST"
 
 CODE_HTTP=$(requete_http \
   "DELETE" \
-  "$API_URL/utilisateurs/$UTILISATEUR_ID")
+"$API_URL/utilisateurs/$UTILISATEUR_ID" \
+  "" \
+  "$TOKEN")
 
 verifier_code_http \
   "$CODE_HTTP" \
