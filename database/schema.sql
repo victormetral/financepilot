@@ -40,7 +40,7 @@ CREATE TABLE budget (
   id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   utilisateur_id INTEGER NOT NULL REFERENCES utilisateur(id),
   categorie_id INTEGER NOT NULL REFERENCES categorie(id),
-  montant_maximum NUMERIC(12, 2) NOT NULL,
+  montant_limite NUMERIC(12, 2) NOT NULL,
   mois INTEGER NOT NULL,
   annee INTEGER NOT NULL,
   UNIQUE (utilisateur_id, categorie_id, mois, annee)

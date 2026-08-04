@@ -84,14 +84,14 @@ SELECT
   utilisateur.nom,
   utilisateur.prenom,
   categorie.nom AS categorie,
-  budget.montant_maximum,
+  budget.montant_limite,
   ABS(
     COALESCE(
       SUM(transaction_financiere.montant),
       0
     )
   ) AS total_depenses,
-  budget.montant_maximum
+  budget.montant_limite
     - ABS(
         COALESCE(
           SUM(transaction_financiere.montant),
@@ -115,7 +115,7 @@ GROUP BY
   utilisateur.nom,
   utilisateur.prenom,
   categorie.nom,
-  budget.montant_maximum
+  budget.montant_limite
 ORDER BY
   utilisateur.nom ASC,
   categorie.nom ASC;

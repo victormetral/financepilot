@@ -68,7 +68,7 @@ INSERT INTO utilisateur (
   INSERT INTO budget (
   utilisateur_id,
   categorie_id,
-  montant_maximum,
+  montant_limite,
   mois,
   annee
 ) VALUES
