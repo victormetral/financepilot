@@ -2,34 +2,18 @@
   VALIDATEUR DES CATÉGORIES
 
   Ce fichier centralise les règles de validation
-  liées aux catégories de FinancePilot.
+  liées aux catégories.
 
   Utilisé par :
   - categorie.controller.js
 
-  Son rôle :
-  - valider les identifiants ;
-  - vérifier les champs obligatoires ;
-  - convertir utilisateur_id en nombre ;
-  - vérifier les textes ;
-  - nettoyer les données avant leur envoi au service.
-
-  Ce fichier ne doit pas :
-  - utiliser request ou response ;
-  - envoyer de réponse HTTP ;
-  - exécuter de requête SQL ;
-  - appeler directement PostgreSQL.
+  Règle de sécurité :
+  - utilisateur_id n’est jamais choisi dans le JSON ;
+  - il est récupéré depuis le JWT par le contrôleur.
 
   Il renvoie toujours :
   - estValide: true avec donnees ;
   - ou estValide: false avec message.
-
-  Victor :
-  les types de catégories ne sont pas encore limités
-  par une liste fermée dans le projet.
-
-  Pour le moment, type_categorie doit simplement
-  être un texte non vide.
 */
 
 import {
@@ -45,13 +29,6 @@ import {
 /*
   Vérifie l’identifiant d’une catégorie
   reçu dans l’URL.
-
-  Exemple :
-  GET /api/categories/3
-
-  L’identifiant doit être :
-  - un nombre entier ;
-  - strictement supérieur à zéro.
 */
 export const validerIdCategorie = (id) => {
   const idNombre = Number(id)
@@ -72,47 +49,30 @@ export const validerIdCategorie = (id) => {
   une catégorie.
 
   Champs obligatoires :
-  - utilisateur_id ;
   - nom ;
   - type_categorie.
+
+  🟨 CORRIGÉ :
+  utilisateur_id n’est plus obligatoire.
+  Une éventuelle valeur envoyée dans le JSON
+  est volontairement ignorée.
 */
 export const validerCreationCategorie = (
   body
 ) => {
+  // 🟨 CORRIGÉ : utilisateur_id a été retiré.
   const {
-    utilisateur_id,
     nom,
     type_categorie,
   } = body
 
+  // 🟨 CORRIGÉ
   if (
-    utilisateur_id === undefined ||
     nom === undefined ||
     type_categorie === undefined
   ) {
     return validationEchouee(
-      "utilisateur_id, nom et type_categorie sont obligatoires"
-    )
-  }
-
-  /*
-    utilisateur_id peut être reçu comme nombre
-    ou comme texte dans le JSON.
-
-    Exemple :
-    "3" devient 3.
-  */
-  const utilisateurId = Number(
-    utilisateur_id
-  )
-
-  if (
-    !entierPositifEstValide(
-      utilisateurId
-    )
-  ) {
-    return validationEchouee(
-      "utilisateur_id doit être un nombre entier supérieur à 0"
+      "nom et type_categorie sont obligatoires"
     )
   }
 
@@ -129,14 +89,11 @@ export const validerCreationCategorie = (
   }
 
   /*
-    trim() retire les espaces inutiles
-    placés au début et à la fin.
-
-    Exemple :
-    " Alimentation " devient "Alimentation".
+    🟨 CORRIGÉ :
+    utilisateur_id est volontairement absent
+    des données validées.
   */
   return validationReussie({
-    utilisateur_id: utilisateurId,
     nom: nom.trim(),
     type_categorie:
       type_categorie.trim(),
@@ -151,8 +108,7 @@ export const validerCreationCategorie = (
   - nom ;
   - type_categorie.
 
-  utilisateur_id reste inchangé,
-  conformément au fonctionnement actuel du service.
+  utilisateur_id reste inchangé.
 */
 export const validerModificationCategorie = (
   body

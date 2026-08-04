@@ -15,17 +15,18 @@
 
   categorie.controller.js
   → orchestre les requêtes HTTP
+  → récupère l’identité depuis le JWT
 
   categorie.validator.js
-  → valide, transforme et nettoie les données
+  → valide et nettoie les données
 
   categorie.service.js
   → exécute les requêtes SQL
+  → vérifie le propriétaire
 
-  Victor :
-  si une règle concernant le nom,
-  le type ou les identifiants change,
-  modifie d’abord categorie.validator.js.
+  Règle de sécurité :
+  utilisateur_id vient toujours du JWT,
+  jamais du JSON envoyé par le client.
 */
 
 import {
@@ -41,8 +42,6 @@ import {
   deleteCategorie,
 } from "../services/categorie.service.js"
 
-// 🟨 NOUVEAU : validations déplacées
-// dans un fichier spécialisé.
 import {
   validerIdCategorie,
   validerCreationCategorie,
@@ -50,18 +49,23 @@ import {
 } from "../validators/categorie.validator.js"
 
 /*
-  Récupère toutes les catégories.
-
-  Exemple :
-  GET /api/categories
+  Récupère uniquement les catégories
+  de l’utilisateur authentifié.
 */
 export const getCategories = async (
   request,
   response
 ) => {
   try {
+    // 🟨 NOUVEAU : identifiant extrait du JWT.
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    // 🟨 CORRIGÉ : filtrage par propriétaire.
     const categories =
-      await findAllCategories()
+      await findAllCategories(
+        utilisateurId
+      )
 
     response.json(categories)
   } catch (error) {
@@ -74,11 +78,8 @@ export const getCategories = async (
 }
 
 /*
-  Récupère une catégorie précise grâce
-  à l’identifiant placé dans l’URL.
-
-  Exemple :
-  GET /api/categories/3
+  Récupère une catégorie uniquement si elle appartient
+  à l’utilisateur authentifié.
 */
 export const getCategorieById = async (
   request,
@@ -96,9 +97,15 @@ export const getCategorieById = async (
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    // 🟨 CORRIGÉ : transmission du propriétaire.
     const categorie =
       await findCategorieById(
-        validation.donnees.id
+        validation.donnees.id,
+        utilisateurId
       )
 
     if (!categorie) {
@@ -118,13 +125,10 @@ export const getCategorieById = async (
 }
 
 /*
-  Crée une nouvelle catégorie.
+  Crée une catégorie pour l’utilisateur authentifié.
 
-  Le validateur :
-  - vérifie utilisateur_id ;
-  - vérifie nom ;
-  - vérifie type_categorie ;
-  - retire les espaces inutiles.
+  Même si le client envoie utilisateur_id dans le JSON,
+  cette valeur est ignorée.
 */
 export const postCategorie = async (
   request,
@@ -142,22 +146,28 @@ export const postCategorie = async (
       })
     }
 
+    /*
+      🟨 NOUVEAU
+
+      ... copie les données validées.
+      utilisateur_id est ensuite ajouté depuis le JWT.
+    */
+    const donneesCategorie = {
+      ...validation.donnees,
+      utilisateur_id:
+        request.utilisateur.utilisateurId,
+    }
+
+    // 🟨 CORRIGÉ
     const nouvelleCategorie =
       await createCategorie(
-        validation.donnees
+        donneesCategorie
       )
 
     response
       .status(201)
       .json(nouvelleCategorie)
   } catch (error) {
-    /*
-      PostgreSQL 23505 :
-      une contrainte UNIQUE est violée.
-
-      Cela signifie ici que cette catégorie
-      existe déjà pour cet utilisateur.
-    */
     if (estErreurDoublon(error)) {
       return response.status(409).json({
         message:
@@ -165,15 +175,10 @@ export const postCategorie = async (
       })
     }
 
-    /*
-      PostgreSQL 23503 :
-      utilisateur_id ne correspond
-      à aucun utilisateur existant.
-    */
     if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
         message:
-          "L’utilisateur indiqué n’existe pas",
+          "L’utilisateur authentifié n’existe pas",
       })
     }
 
@@ -186,13 +191,12 @@ export const postCategorie = async (
 }
 
 /*
-  Modifie entièrement une catégorie.
+  Modifie une catégorie uniquement si elle appartient
+  à l’utilisateur authentifié.
 
   PUT exige :
   - nom ;
   - type_categorie.
-
-  utilisateur_id reste inchangé.
 */
 export const putCategorie = async (
   request,
@@ -222,9 +226,22 @@ export const putCategorie = async (
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    /*
+      🟨 CORRIGÉ
+
+      Le service reçoit :
+      1. l’identifiant de la catégorie ;
+      2. l’identifiant du propriétaire ;
+      3. les nouvelles données.
+    */
     const categorieModifiee =
       await updateCategorie(
         validationId.donnees.id,
+        utilisateurId,
         validationDonnees.donnees
       )
 
@@ -252,11 +269,8 @@ export const putCategorie = async (
 }
 
 /*
-  Supprime une catégorie grâce
-  à son identifiant.
-
-  Le service renvoie la catégorie supprimée
-  grâce à la clause SQL RETURNING.
+  Supprime une catégorie uniquement si elle appartient
+  à l’utilisateur authentifié.
 */
 export const deleteCategorieById = async (
   request,
@@ -274,9 +288,15 @@ export const deleteCategorieById = async (
       })
     }
 
+    // 🟨 NOUVEAU
+    const utilisateurId =
+      request.utilisateur.utilisateurId
+
+    // 🟨 CORRIGÉ : transmission du propriétaire.
     const categorieSupprimee =
       await deleteCategorie(
-        validation.donnees.id
+        validation.donnees.id,
+        utilisateurId
       )
 
     if (!categorieSupprimee) {
@@ -293,12 +313,8 @@ export const deleteCategorieById = async (
   } catch (error) {
     /*
       PostgreSQL 23503 :
-      la catégorie est encore référencée
-      par une autre table.
-
-      Ici :
-      - des transactions ;
-      - ou des budgets.
+      la catégorie est encore utilisée
+      par une transaction ou un budget.
     */
     if (estErreurCleEtrangere(error)) {
       return response.status(409).json({
