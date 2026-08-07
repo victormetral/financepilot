@@ -23,7 +23,9 @@
 # une erreur située dans n'importe quelle partie d'un pipe.
 set -euo pipefail
 
-API_URL="http://localhost:3000/api"
+# 🟨 CORRIGÉ : l'adresse racine sert au contrôle public du backend.
+BACKEND_URL="http://localhost:3000"
+API_URL="$BACKEND_URL/api"
 TIMESTAMP=$(date +%s)
 
 # $$ représente l'identifiant du processus Bash actuel.
@@ -33,6 +35,8 @@ FICHIER_REPONSE="/tmp/reponse-errors-financepilot-$$.json"
 # Identifiants des données temporaires.
 # Ils restent vides tant que les ressources ne sont pas créées.
 UTILISATEUR_ID=""
+# 🟨 NOUVEAU : rempli après la connexion du compte de test.
+TOKEN=""
 COMPTE_ID=""
 CATEGORIE_ID=""
 BUDGET_ID=""
@@ -54,7 +58,18 @@ requete_http() {
   local url="$2"
   local donnees="${3-}"
 
-  if [ -n "$donnees" ]; then
+  # 🟨 CORRIGÉ : données JSON et JWT pour POST ou PUT protégé.
+  if [ -n "$donnees" ] && [ -n "$TOKEN" ]; then
+    curl \
+      -sS \
+      -o "$FICHIER_REPONSE" \
+      -w "%{http_code}" \
+      -X "$methode" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $TOKEN" \
+      -d "$donnees" \
+      "$url"
+  elif [ -n "$donnees" ]; then
     curl \
       -sS \
       -o "$FICHIER_REPONSE" \
@@ -62,6 +77,15 @@ requete_http() {
       -X "$methode" \
       -H "Content-Type: application/json" \
       -d "$donnees" \
+      "$url"
+  # 🟨 CORRIGÉ : JWT sans données JSON pour GET ou DELETE protégé.
+  elif [ -n "$TOKEN" ]; then
+    curl \
+      -sS \
+      -o "$FICHIER_REPONSE" \
+      -w "%{http_code}" \
+      -X "$methode" \
+      -H "Authorization: Bearer $TOKEN" \
       "$url"
   else
     curl \
@@ -151,38 +175,38 @@ creer_donnee_test() {
 # des clés étrangères : enfants d'abord, parents ensuite.
 nettoyer_donnees_test() {
   if [ -n "$OPERATION_ID" ]; then
-    curl -sS -o /dev/null -X DELETE \
-      "$API_URL/operations-investissement/$OPERATION_ID" || true
+    requete_http "DELETE" \
+      "$API_URL/operations-investissement/$OPERATION_ID" >/dev/null || true
   fi
 
   if [ -n "$TRANSACTION_ID" ]; then
-    curl -sS -o /dev/null -X DELETE \
-      "$API_URL/transactions/$TRANSACTION_ID" || true
+    requete_http "DELETE" \
+      "$API_URL/transactions/$TRANSACTION_ID" >/dev/null || true
   fi
 
   if [ -n "$BUDGET_ID" ]; then
-    curl -sS -o /dev/null -X DELETE \
-      "$API_URL/budgets/$BUDGET_ID" || true
+    requete_http "DELETE" \
+      "$API_URL/budgets/$BUDGET_ID" >/dev/null || true
   fi
 
   if [ -n "$ACTIF_ID" ]; then
-    curl -sS -o /dev/null -X DELETE \
-      "$API_URL/actifs-financiers/$ACTIF_ID" || true
+    requete_http "DELETE" \
+      "$API_URL/actifs-financiers/$ACTIF_ID" >/dev/null || true
   fi
 
   if [ -n "$CATEGORIE_ID" ]; then
-    curl -sS -o /dev/null -X DELETE \
-      "$API_URL/categories/$CATEGORIE_ID" || true
+    requete_http "DELETE" \
+      "$API_URL/categories/$CATEGORIE_ID" >/dev/null || true
   fi
 
   if [ -n "$COMPTE_ID" ]; then
-    curl -sS -o /dev/null -X DELETE \
-      "$API_URL/comptes/$COMPTE_ID" || true
+    requete_http "DELETE" \
+      "$API_URL/comptes/$COMPTE_ID" >/dev/null || true
   fi
 
   if [ -n "$UTILISATEUR_ID" ]; then
-    curl -sS -o /dev/null -X DELETE \
-      "$API_URL/utilisateurs/$UTILISATEUR_ID" || true
+    requete_http "DELETE" \
+      "$API_URL/utilisateurs/$UTILISATEUR_ID" >/dev/null || true
   fi
 
   rm -f "$FICHIER_REPONSE"
@@ -209,7 +233,8 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-CODE_HTTP=$(requete_http "GET" "$API_URL/utilisateurs")
+# 🟨 CORRIGÉ : la racine est publique, contrairement à GET /utilisateurs.
+CODE_HTTP=$(requete_http "GET" "$BACKEND_URL/")
 
 if [ "$CODE_HTTP" != "200" ]; then
   echo "❌ Backend inaccessible"
@@ -245,12 +270,40 @@ creer_donnee_test \
     \"mot_de_passe\": \"TestFinance123!\"
   }"
 
+# 🟨 NOUVEAU : connexion du compte de test avant les routes protégées.
+CODE_HTTP=$(requete_http \
+  "POST" \
+  "$API_URL/auth/connexion" \
+  "{
+    \"email\": \"$EMAIL_TEST\",
+    \"mot_de_passe\": \"TestFinance123!\"
+  }")
+
+if [ "$CODE_HTTP" != "200" ]; then
+  echo "❌ Impossible de connecter l'utilisateur de test"
+  echo "❌ Code attendu : 200"
+  echo "❌ Code reçu : $CODE_HTTP"
+  cat "$FICHIER_REPONSE"
+  echo ""
+  exit 1
+fi
+
+TOKEN=$(jq -r '.token' "$FICHIER_REPONSE")
+
+if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+  echo "❌ Le JWT est absent de la réponse de connexion"
+  cat "$FICHIER_REPONSE"
+  echo ""
+  exit 1
+fi
+
+echo "✅ JWT récupéré"
+
 creer_donnee_test \
   "COMPTE_ID" \
   "compte" \
   "$API_URL/comptes" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"nom\": \"Compte erreurs\",
     \"type_compte\": \"courant\",
     \"solde_initial\": 1000,
@@ -262,7 +315,6 @@ creer_donnee_test \
   "catégorie" \
   "$API_URL/categories" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"nom\": \"$CATEGORIE_TEST\",
     \"type_categorie\": \"depense\"
   }"
@@ -283,7 +335,6 @@ creer_donnee_test \
   "budget" \
   "$API_URL/budgets" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"categorie_id\": $CATEGORIE_ID,
     \"montant_limite\": 500,
     \"mois\": 8,
@@ -383,25 +434,11 @@ tester_erreur \
 # ============================================================
 
 tester_erreur \
-  "Compte lié à un utilisateur inexistant refusé" \
-  "409" \
-  "POST" \
-  "$API_URL/comptes" \
-  '{
-    "utilisateur_id": 999999999,
-    "nom": "Compte impossible",
-    "type_compte": "courant",
-    "solde_initial": 100,
-    "devise": "EUR"
-  }'
-
-tester_erreur \
   "Solde initial non numérique refusé" \
   "400" \
   "POST" \
   "$API_URL/comptes" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"nom\": \"Compte invalide\",
     \"type_compte\": \"courant\",
     \"solde_initial\": \"cent euros\",
@@ -414,7 +451,6 @@ tester_erreur \
   "POST" \
   "$API_URL/comptes" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"nom\": \"Compte invalide\",
     \"type_compte\": \"   \"
   }"
@@ -442,21 +478,9 @@ tester_erreur \
   "POST" \
   "$API_URL/categories" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"nom\": \"   \",
     \"type_categorie\": \"depense\"
   }"
-
-tester_erreur \
-  "Catégorie liée à un utilisateur inexistant refusée" \
-  "409" \
-  "POST" \
-  "$API_URL/categories" \
-  '{
-    "utilisateur_id": 999999999,
-    "nom": "Catégorie impossible",
-    "type_categorie": "depense"
-  }'
 
 tester_erreur \
   "Catégorie en doublon refusée" \
@@ -464,7 +488,6 @@ tester_erreur \
   "POST" \
   "$API_URL/categories" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"nom\": \"$CATEGORIE_TEST\",
     \"type_categorie\": \"depense\"
   }"
@@ -543,7 +566,7 @@ tester_erreur \
 
 tester_erreur \
   "Transaction liée à un compte inexistant refusée" \
-  "409" \
+  "404" \
   "POST" \
   "$API_URL/transactions" \
   '{
@@ -596,7 +619,6 @@ tester_erreur \
   "POST" \
   "$API_URL/budgets" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"categorie_id\": $CATEGORIE_ID,
     \"montant_limite\": 0,
     \"mois\": 9,
@@ -609,7 +631,6 @@ tester_erreur \
   "POST" \
   "$API_URL/budgets" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"categorie_id\": $CATEGORIE_ID,
     \"montant_limite\": 500,
     \"mois\": 13,
@@ -622,7 +643,6 @@ tester_erreur \
   "POST" \
   "$API_URL/budgets" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"categorie_id\": $CATEGORIE_ID,
     \"montant_limite\": 500,
     \"mois\": 9,
@@ -631,11 +651,10 @@ tester_erreur \
 
 tester_erreur \
   "Budget lié à une catégorie inexistante refusé" \
-  "409" \
+  "404" \
   "POST" \
   "$API_URL/budgets" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"categorie_id\": 999999999,
     \"montant_limite\": 500,
     \"mois\": 9,
@@ -648,7 +667,6 @@ tester_erreur \
   "POST" \
   "$API_URL/budgets" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"categorie_id\": $CATEGORIE_ID,
     \"montant_limite\": 900,
     \"mois\": 8,
@@ -690,7 +708,6 @@ tester_erreur \
   "POST" \
   "$API_URL/objectifs" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"nom\": \"Objectif invalide\",
     \"montant_cible\": 0
   }"
@@ -701,7 +718,6 @@ tester_erreur \
   "POST" \
   "$API_URL/objectifs" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"nom\": \"Objectif invalide\",
     \"montant_cible\": 1000,
     \"montant_actuel\": -1
@@ -713,7 +729,6 @@ tester_erreur \
   "POST" \
   "$API_URL/objectifs" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"nom\": \"Objectif invalide\",
     \"montant_cible\": 1000,
     \"date_echeance\": \"2026-02-30\"
@@ -725,22 +740,10 @@ tester_erreur \
   "POST" \
   "$API_URL/objectifs" \
   "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
     \"nom\": \"Objectif invalide\",
     \"montant_cible\": 1000,
     \"statut\": \"presque fini\"
   }"
-
-tester_erreur \
-  "Objectif lié à un utilisateur inexistant refusé" \
-  "409" \
-  "POST" \
-  "$API_URL/objectifs" \
-  '{
-    "utilisateur_id": 999999999,
-    "nom": "Objectif impossible",
-    "montant_cible": 1000
-  }'
 
 tester_erreur \
   "Identifiant objectif mal formé refusé" \
@@ -871,7 +874,7 @@ tester_erreur \
 
 tester_erreur \
   "Opération liée à un compte inexistant refusée" \
-  "409" \
+  "404" \
   "POST" \
   "$API_URL/operations-investissement" \
   "{
@@ -951,4 +954,3 @@ trap - EXIT
 
 echo ""
 echo "✅ Les $NOMBRE_TESTS tests d'erreur ont réussi"
-test-errors.sh
