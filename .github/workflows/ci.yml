@@ -1,0 +1,143 @@
+name: FinancePilot CI
+
+# 🟨 NEW
+# Run the workflow on every push and on pull requests targeting main.
+on:
+  push:
+  pull_request:
+    branches:
+      - main
+
+# 🟨 NEW
+# Grant the workflow only the permission required to read the repository.
+permissions:
+  contents: read
+
+jobs:
+  # 🟨 NEW
+  # Check the React frontend.
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend linting
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  # 🟨 NEW
+  # Start PostgreSQL and test the Node.js backend.
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+
+        env:
+          POSTGRES_USER: financepilot
+          POSTGRES_PASSWORD: financepilot
+          POSTGRES_DB: financepilot
+
+        ports:
+          - 5432:5432
+
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PORT: 3000
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: financepilot
+      DB_USER: financepilot
+      DB_PASSWORD: financepilot
+      JWT_SECRET: financepilot-ci-only-secret
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes jq postgresql-client
+
+      - name: Create database tables
+        env:
+          PGPASSWORD: financepilot
+        run: |
+          psql \
+            --host="$DB_HOST" \
+            --port="$DB_PORT" \
+            --username="$DB_USER" \
+            --dbname="$DB_NAME" \
+            --file=database/schema.sql
+
+      - name: Start backend
+        working-directory: backend
+        run: |
+          nohup npm start > /tmp/financepilot-backend.log 2>&1 &
+
+      - name: Wait for backend
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:3000/ > /dev/null; then
+              echo "Backend is ready."
+              exit 0
+            fi
+
+            sleep 1
+          done
+
+          echo "Backend did not start."
+          cat /tmp/financepilot-backend.log
+          exit 1
+
+      - name: Run authentication tests
+        run: bash scripts/test-auth.sh
+
+      - name: Run CRUD tests
+        run: bash scripts/test-crud.sh
+
+      - name: Run error tests
+        run: bash scripts/test-errors.sh
+
+      - name: Display backend logs after failure
+        if: failure()
+        run: cat /tmp/financepilot-backend.log
