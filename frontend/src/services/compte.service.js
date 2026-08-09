@@ -1,16 +1,3 @@
-// ============================================================
-// SERVICE DES COMPTES BANCAIRES
-// ============================================================
-//
-// Rôle : regrouper les quatre requêtes CRUD des comptes.
-// Utilisé par : App.jsx.
-//
-// CRUD :
-// Create = créer avec POST
-// Read   = lire avec GET
-// Update = modifier avec PUT
-// Delete = supprimer avec DELETE
-
 import { API_URL } from "../config/api.js"
 
 async function lireReponse(reponse) {
@@ -18,14 +5,13 @@ async function lireReponse(reponse) {
 
   return {
     ok: reponse.ok,
-    donnees
+    donnees,
   }
 }
 
-// 🟨 NOUVEAU : fabrique l'en-tête JWT commun aux routes protégées.
 function creerHeaders(token, avecJson = false) {
   const headers = {
-    Authorization: `Bearer ${token}`
+    Authorization: `Bearer ${token}`,
   }
 
   if (avecJson) {
@@ -37,14 +23,14 @@ function creerHeaders(token, avecJson = false) {
 
 export async function recupererComptes(token) {
   const reponse = await fetch(`${API_URL}/comptes`, {
-    headers: creerHeaders(token)
+    headers: creerHeaders(token),
   })
 
   return lireReponse(reponse)
 }
 
 export async function creerCompte(
-  { nom, typeCompte },
+  { nom, typeCompte, sousTypeCompte },
   token
 ) {
   const reponse = await fetch(`${API_URL}/comptes`, {
@@ -52,8 +38,10 @@ export async function creerCompte(
     headers: creerHeaders(token, true),
     body: JSON.stringify({
       nom,
-      type_compte: typeCompte
-    })
+      type_compte: typeCompte,
+      // 🟨 CORRIGÉ : champ exigé par le validateur backend.
+      sous_type_compte: sousTypeCompte,
+    }),
   })
 
   return lireReponse(reponse)
@@ -64,8 +52,9 @@ export async function modifierCompte(
   {
     nom,
     typeCompte,
+    sousTypeCompte,
     soldeInitial,
-    devise
+    devise,
   },
   token
 ) {
@@ -77,9 +66,11 @@ export async function modifierCompte(
       body: JSON.stringify({
         nom,
         type_compte: typeCompte,
+        // 🟨 CORRIGÉ : PUT exige aussi ce champ.
+        sous_type_compte: sousTypeCompte,
         solde_initial: Number(soldeInitial),
-        devise
-      })
+        devise,
+      }),
     }
   )
 
@@ -91,7 +82,7 @@ export async function supprimerCompte(compteId, token) {
     `${API_URL}/comptes/${compteId}`,
     {
       method: "DELETE",
-      headers: creerHeaders(token)
+      headers: creerHeaders(token),
     }
   )
 

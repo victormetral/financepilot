@@ -1,22 +1,44 @@
-// ============================================================
-// FORMULAIRE DE MODIFICATION D'UN COMPTE BANCAIRE
-// ============================================================
-//
-// Rôle : préremplir puis envoyer les quatre champs exigés par PUT.
-// Utilisé par : CompteList.jsx.
-
 import { useState } from "react"
+
+const sousTypesParType = {
+  courant: ["compte_courant"],
+  epargne: [
+    "livret_a",
+    "ldds",
+    "lep",
+    "pel",
+    "cel",
+    "autre_epargne",
+  ],
+  investissement: [
+    "pea",
+    "assurance_vie",
+    "cto",
+    "crypto",
+    "autre_investissement",
+  ],
+  credit: ["carte_credit"],
+  pret: [
+    "pret_immobilier",
+    "pret_consommation",
+    "autre_pret",
+  ],
+}
 
 function CompteEditForm({
   compte,
   onModification,
-  onAnnulation
+  onAnnulation,
 }) {
   const [nom, setNom] = useState(compte.nom)
-  const [typeCompte, setTypeCompte] =
-    useState(compte.type_compte)
-  const [soldeInitial, setSoldeInitial] =
-    useState(compte.solde_initial)
+  const [typeCompte, setTypeCompte] = useState(compte.type_compte)
+  // 🟨 CORRIGÉ : PUT exige aussi ce champ.
+  const [sousTypeCompte, setSousTypeCompte] = useState(
+    compte.sous_type_compte
+  )
+  const [soldeInitial, setSoldeInitial] = useState(
+    compte.solde_initial
+  )
   const [devise, setDevise] = useState(compte.devise)
 
   function gererEnvoi(event) {
@@ -25,9 +47,15 @@ function CompteEditForm({
     onModification(compte.id, {
       nom,
       typeCompte,
+      sousTypeCompte,
       soldeInitial,
-      devise
+      devise,
     })
+  }
+
+  function gererChangementType(event) {
+    setTypeCompte(event.target.value)
+    setSousTypeCompte("")
   }
 
   return (
@@ -46,15 +74,35 @@ function CompteEditForm({
       <label htmlFor={`typeCompteModifie-${compte.id}`}>
         Type
       </label>
-      <input
+      <select
         id={`typeCompteModifie-${compte.id}`}
-        type="text"
         value={typeCompte}
-        onChange={(event) =>
-          setTypeCompte(event.target.value)
-        }
+        onChange={gererChangementType}
         required
-      />
+      >
+        <option value="courant">Compte courant</option>
+        <option value="epargne">Épargne</option>
+        <option value="investissement">Investissement</option>
+        <option value="credit">Crédit</option>
+        <option value="pret">Prêt</option>
+      </select>
+
+      <label htmlFor={`sousTypeCompteModifie-${compte.id}`}>
+        Sous-type
+      </label>
+      <select
+        id={`sousTypeCompteModifie-${compte.id}`}
+        value={sousTypeCompte}
+        onChange={(event) => setSousTypeCompte(event.target.value)}
+        required
+      >
+        <option value="">Choisir un sous-type</option>
+        {sousTypesParType[typeCompte].map((sousType) => (
+          <option key={sousType} value={sousType}>
+            {sousType.replaceAll("_", " ")}
+          </option>
+        ))}
+      </select>
 
       <label htmlFor={`soldeCompteModifie-${compte.id}`}>
         Solde initial
@@ -64,9 +112,7 @@ function CompteEditForm({
         type="number"
         step="0.01"
         value={soldeInitial}
-        onChange={(event) =>
-          setSoldeInitial(event.target.value)
-        }
+        onChange={(event) => setSoldeInitial(event.target.value)}
         required
       />
 
