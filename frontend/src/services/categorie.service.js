@@ -21,55 +21,43 @@ function creerHeaders(token, avecJson = false) {
   return headers
 }
 
-export async function recupererComptes(token) {
-  const reponse = await fetch(`${API_URL}/comptes`, {
+export async function recupererCategories(token) {
+  const reponse = await fetch(`${API_URL}/categories`, {
     headers: creerHeaders(token),
   })
 
   return lireReponse(reponse)
 }
 
-export async function creerCompte(
-  { nom, typeCompte, sousTypeCompte },
+export async function creerCategorie(
+  { nom, typeCategorie },
   token
 ) {
-  const reponse = await fetch(`${API_URL}/comptes`, {
+  const reponse = await fetch(`${API_URL}/categories`, {
     method: "POST",
     headers: creerHeaders(token, true),
     body: JSON.stringify({
       nom,
-      type_compte: typeCompte,
-      // 🟨 CORRIGÉ : champ exigé par le validateur backend.
-      sous_type_compte: sousTypeCompte,
+      type_categorie: typeCategorie,
     }),
   })
 
   return lireReponse(reponse)
 }
 
-export async function modifierCompte(
-  compteId,
-  {
-    nom,
-    typeCompte,
-    sousTypeCompte,
-    soldeInitial,
-    devise,
-  },
+export async function modifierCategorie(
+  categorieId,
+  { nom, typeCategorie },
   token
 ) {
   const reponse = await fetch(
-    `${API_URL}/comptes/${compteId}`,
+    `${API_URL}/categories/${categorieId}`,
     {
       method: "PUT",
       headers: creerHeaders(token, true),
       body: JSON.stringify({
         nom,
-        type_compte: typeCompte,
-        // 🟨 CORRIGÉ : PUT exige aussi ce champ.
-        sous_type_compte: sousTypeCompte,
-        solde_initial: Number(soldeInitial),
-        devise,
+        type_categorie: typeCategorie,
       }),
     }
   )
@@ -77,9 +65,9 @@ export async function modifierCompte(
   return lireReponse(reponse)
 }
 
-export async function supprimerCompte(compteId, token) {
+export async function supprimerCategorie(categorieId, token) {
   const reponse = await fetch(
-    `${API_URL}/comptes/${compteId}`,
+    `${API_URL}/categories/${categorieId}`,
     {
       method: "DELETE",
       headers: creerHeaders(token),
