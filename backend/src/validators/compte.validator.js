@@ -1,36 +1,10 @@
 /*
-  VALIDATEUR DES COMPTES
+  ACCOUNT VALIDATOR
 
-  Ce fichier centralise toutes les règles de validation
-  liées aux comptes bancaires de FinancePilot.
+  Valide et normalise les données des comptes avant
+  leur envoi au contrôleur.
 
-  Utilisé par :
-  - compte.controller.js
-
-  Son rôle :
-  - valider les identifiants ;
-  - vérifier les champs obligatoires ;
-  - convertir les données numériques ;
-  - nettoyer les textes ;
-  - appliquer les valeurs par défaut du POST.
-
-  Valeurs par défaut lors de la création :
-  - solde_initial = 0 ;
-  - devise = "EUR".
-
-  Règle de sécurité :
-  - utilisateur_id ne vient jamais du body JSON ;
-  - il sera récupéré depuis le JWT par le contrôleur.
-
-  Ce fichier ne doit pas :
-  - utiliser request ou response ;
-  - envoyer de statut HTTP ;
-  - exécuter de requête SQL ;
-  - appeler directement PostgreSQL.
-
-  Il renvoie toujours :
-  - estValide: true avec donnees ;
-  - ou estValide: false avec message.
+  Ce fichier ne contient ni requête SQL ni réponse HTTP.
 */
 
 import {
@@ -43,15 +17,16 @@ import {
   texteEstValide,
 } from "../utils/validation.utils.js"
 
+import {
+  TYPES_COMPTE_AUTORISES,
+  sousTypeCompteEstValide,
+} from "../constants/compte.constants.js"
+
 /*
-  Vérifie l’identifiant d’un compte reçu dans l’URL.
+  Valide un identifiant de compte reçu dans l'URL.
 
-  Exemple :
+  Example:
   GET /api/comptes/3
-
-  L’identifiant doit être :
-  - un entier ;
-  - strictement supérieur à zéro.
 */
 export const validerIdCompte = (id) => {
   const idNombre = Number(id)
@@ -68,68 +43,71 @@ export const validerIdCompte = (id) => {
 }
 
 /*
-  Valide les données utilisées pour créer un compte.
+  Valide puis normalise le type et le sous-type ensemble.
 
-  Champs obligatoires :
-  - nom ;
-  - type_compte.
-
-  Champs facultatifs :
-  - solde_initial, avec 0 par défaut ;
-  - devise, avec EUR par défaut.
-
-  🟨 CORRIGÉ :
-  utilisateur_id n’est plus demandé au client.
-  Il proviendra de l’utilisateur authentifié par JWT.
+  Règle métier :
+  un sous-type doit appartenir au type de compte choisi.
 */
-export const validerCreationCompte = (body) => {
-  // 🟨 CORRIGÉ : utilisateur_id a été retiré.
-  const {
-    nom,
-    type_compte,
-    solde_initial = 0,
-    devise = "EUR",
-  } = body
-
-  // 🟨 CORRIGÉ
+const validerTypeEtSousTypeCompte = (
+  typeCompteBrut,
+  sousTypeCompteBrut
+) => {
   if (
-    nom === undefined ||
-    type_compte === undefined
+    !texteEstValide(typeCompteBrut) ||
+    !texteEstValide(sousTypeCompteBrut)
   ) {
     return validationEchouee(
-      "nom et type_compte sont obligatoires"
+      "type_compte et sous_type_compte doivent être des textes non vides"
     )
+  }
+
+  const typeCompte = typeCompteBrut.trim().toLowerCase()
+  const sousTypeCompte = sousTypeCompteBrut.trim().toLowerCase()
+
+  if (!TYPES_COMPTE_AUTORISES.includes(typeCompte)) {
+    return validationEchouee("type_compte est invalide")
+  }
+
+  if (!sousTypeCompteEstValide(typeCompte, sousTypeCompte)) {
+    return validationEchouee(
+      "sous_type_compte est invalide pour ce type_compte"
+    )
+  }
+
+  return validationReussie({
+    typeCompte,
+    sousTypeCompte,
+  })
+}
+
+/*
+  Valide les champs communs au POST et au PUT.
+
+  Le solde peut être négatif : il représente par exemple
+  un découvert bancaire.
+*/
+const validerDonneesCompte = ({
+  nom,
+  type_compte,
+  sous_type_compte,
+  solde_initial,
+  devise,
+}) => {
+  if (!texteEstValide(nom)) {
+    return validationEchouee("nom doit être un texte non vide")
+  }
+
+  const resultatTypeCompte = validerTypeEtSousTypeCompte(
+    type_compte,
+    sous_type_compte
+  )
+
+  if (!resultatTypeCompte.estValide) {
+    return resultatTypeCompte
   }
 
   const soldeInitial = Number(solde_initial)
 
-  if (!texteEstValide(nom)) {
-    return validationEchouee(
-      "nom doit être un texte non vide"
-    )
-  }
-
-  /*
-    Aucun type de compte fermé n’existe encore
-    dans les règles actuelles du projet.
-
-    On vérifie donc seulement que type_compte
-    est un texte non vide.
-  */
-  if (!texteEstValide(type_compte)) {
-    return validationEchouee(
-      "type_compte doit être un texte non vide"
-    )
-  }
-
-  /*
-    Le solde initial peut être :
-    - positif ;
-    - égal à zéro ;
-    - négatif, par exemple pour un découvert.
-
-    On vérifie seulement qu’il s’agit d’un nombre fini.
-  */
   if (!Number.isFinite(soldeInitial)) {
     return validationEchouee(
       "solde_initial doit être un nombre valide"
@@ -137,48 +115,67 @@ export const validerCreationCompte = (body) => {
   }
 
   if (!texteEstValide(devise)) {
-    return validationEchouee(
-      "devise doit être un texte non vide"
-    )
+    return validationEchouee("devise doit être un texte non vide")
   }
 
-  /*
-    Nettoyage des données avant envoi au contrôleur :
-
-    - retrait des espaces inutiles ;
-    - type de compte en minuscules ;
-    - devise en majuscules.
-
-    🟨 CORRIGÉ :
-    utilisateur_id est volontairement absent.
-  */
   return validationReussie({
     nom: nom.trim(),
-    type_compte:
-      type_compte.trim().toLowerCase(),
+    type_compte: resultatTypeCompte.donnees.typeCompte,
+    sous_type_compte: resultatTypeCompte.donnees.sousTypeCompte,
     solde_initial: soldeInitial,
     devise: devise.trim().toUpperCase(),
   })
 }
 
 /*
-  Valide les données utilisées pour modifier
-  entièrement un compte.
+  Valide la création d'un compte.
 
-  PUT exige :
-  - nom ;
-  - type_compte ;
-  - solde_initial ;
-  - devise.
+  Champs obligatoires :
+  nom, type_compte et sous_type_compte.
 
-  utilisateur_id n’est pas modifié par cette route.
+  Valeurs par défaut :
+  solde_initial = 0
+  devise = EUR
 */
-export const validerModificationCompte = (
-  body
-) => {
+export const validerCreationCompte = (body) => {
   const {
     nom,
     type_compte,
+    sous_type_compte,
+    solde_initial = 0,
+    devise = "EUR",
+  } = body
+
+  if (
+    nom === undefined ||
+    type_compte === undefined ||
+    sous_type_compte === undefined
+  ) {
+    return validationEchouee(
+      "nom, type_compte et sous_type_compte sont obligatoires"
+    )
+  }
+
+  return validerDonneesCompte({
+    nom,
+    type_compte,
+    sous_type_compte,
+    solde_initial,
+    devise,
+  })
+}
+
+/*
+  Valide la modification complète d'un compte.
+
+  PUT exige tous les champs du compte.
+  utilisateur_id ne peut jamais être modifié ici.
+*/
+export const validerModificationCompte = (body) => {
+  const {
+    nom,
+    type_compte,
+    sous_type_compte,
     solde_initial,
     devise,
   } = body
@@ -186,45 +183,20 @@ export const validerModificationCompte = (
   if (
     nom === undefined ||
     type_compte === undefined ||
+    sous_type_compte === undefined ||
     solde_initial === undefined ||
     devise === undefined
   ) {
     return validationEchouee(
-      "nom, type_compte, solde_initial et devise sont obligatoires"
+      "nom, type_compte, sous_type_compte, solde_initial et devise sont obligatoires"
     )
   }
 
-  const soldeInitial = Number(solde_initial)
-
-  if (!texteEstValide(nom)) {
-    return validationEchouee(
-      "nom doit être un texte non vide"
-    )
-  }
-
-  if (!texteEstValide(type_compte)) {
-    return validationEchouee(
-      "type_compte doit être un texte non vide"
-    )
-  }
-
-  if (!Number.isFinite(soldeInitial)) {
-    return validationEchouee(
-      "solde_initial doit être un nombre valide"
-    )
-  }
-
-  if (!texteEstValide(devise)) {
-    return validationEchouee(
-      "devise doit être un texte non vide"
-    )
-  }
-
-  return validationReussie({
-    nom: nom.trim(),
-    type_compte:
-      type_compte.trim().toLowerCase(),
-    solde_initial: soldeInitial,
-    devise: devise.trim().toUpperCase(),
+  return validerDonneesCompte({
+    nom,
+    type_compte,
+    sous_type_compte,
+    solde_initial,
+    devise,
   })
 }

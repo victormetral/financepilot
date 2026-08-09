@@ -1,50 +1,26 @@
 /*
-  SERVICE DES COMPTES
+  ACCOUNT SERVICE
 
-  Ce fichier exécute les requêtes SQL liées
-  aux comptes bancaires.
-
-  Utilisé par :
-  - compte.controller.js
-
-  Son rôle :
-  - récupérer les comptes ;
-  - créer un compte ;
-  - modifier un compte ;
-  - supprimer un compte.
+  Exécute les requêtes PostgreSQL liées aux comptes.
 
   Règle de sécurité :
-  - chaque recherche utilise utilisateur_id ;
-  - un utilisateur ne peut accéder qu’à ses comptes ;
-  - l’utilisateur_id provient du JWT via le contrôleur.
-
-  Ce fichier ne doit pas :
-  - utiliser request ou response ;
-  - envoyer de statut HTTP ;
-  - valider les données du body ;
-  - vérifier directement le JWT.
+  chaque requête cible uniquement les comptes
+  appartenant à l'utilisateur authentifié.
 */
 
 import { pool } from "../config/database.js"
 
 /*
-  Récupère uniquement les comptes appartenant
-  à l’utilisateur authentifié.
+  Récupère tous les comptes de l'utilisateur.
 
-  🟨 CORRIGÉ :
-  La requête ne récupère plus tous les comptes
-  présents dans la base de données.
+  ORDER BY garantit un ordre stable dans le frontend.
 */
-export const findAllComptes = async (
-  utilisateurId
-) => {
-  // 🟨 CORRIGÉ : ajout du filtre utilisateur_id.
+export const findAllComptes = async (utilisateurId) => {
   const result = await pool.query(
-    `
-      SELECT *
-      FROM compte
-      WHERE utilisateur_id = $1
-    `,
+    `SELECT *
+     FROM compte
+     WHERE utilisateur_id = $1
+     ORDER BY id ASC`,
     [utilisateurId]
   )
 
@@ -52,34 +28,35 @@ export const findAllComptes = async (
 }
 
 /*
-  Crée un compte pour l’utilisateur authentifié.
+  Crée un compte pour l'utilisateur authentifié.
 
-  utilisateur_id a été ajouté par le contrôleur
-  à partir du JWT avant l’appel de ce service.
+  utilisateur_id est fourni par le contrôleur,
+  depuis le JWT, jamais depuis le client.
 */
 export const createCompte = async ({
   utilisateur_id,
   nom,
   type_compte,
+  sous_type_compte,
   solde_initial,
   devise,
 }) => {
   const result = await pool.query(
-    `
-      INSERT INTO compte (
-        utilisateur_id,
-        nom,
-        type_compte,
-        solde_initial,
-        devise
-      )
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING *
-    `,
+    `INSERT INTO compte (
+      utilisateur_id,
+      nom,
+      type_compte,
+      sous_type_compte,
+      solde_initial,
+      devise
+    )
+    VALUES ($1, $2, $3, $4, $5, $6)
+    RETURNING *`,
     [
       utilisateur_id,
       nom,
       type_compte,
+      sous_type_compte,
       solde_initial,
       devise,
     ]
@@ -89,41 +66,26 @@ export const createCompte = async ({
 }
 
 /*
-  Recherche un compte grâce à deux conditions :
-
-  - son identifiant ;
-  - l’identifiant de son propriétaire.
-
-  🟨 CORRIGÉ :
-  connaître l’identifiant d’un compte ne suffit plus
-  pour pouvoir le consulter.
+  Récupère un compte seulement s'il appartient
+  à l'utilisateur authentifié.
 */
-export const findCompteById = async (
-  id,
-  utilisateurId
-) => {
-  // 🟨 CORRIGÉ : ajout de utilisateur_id = $2.
+export const findCompteById = async (id, utilisateurId) => {
   const result = await pool.query(
-    `
-      SELECT *
-      FROM compte
-      WHERE id = $1
-        AND utilisateur_id = $2
-    `,
-    [
-      id,
-      utilisateurId,
-    ]
+    `SELECT *
+     FROM compte
+     WHERE id = $1
+       AND utilisateur_id = $2`,
+    [id, utilisateurId]
   )
 
   return result.rows[0]
 }
 
 /*
-  Modifie un compte uniquement s’il appartient
-  à l’utilisateur authentifié.
+  Modifie entièrement un compte existant.
 
-  utilisateur_id ne peut pas être modifié.
+  utilisateur_id est uniquement utilisé pour vérifier
+  le propriétaire : il ne peut jamais être modifié.
 */
 export const updateCompte = async (
   id,
@@ -131,29 +93,29 @@ export const updateCompte = async (
   {
     nom,
     type_compte,
+    sous_type_compte,
     solde_initial,
     devise,
   }
 ) => {
   const result = await pool.query(
-    `
-      UPDATE compte
-      SET
-        nom = $1,
-        type_compte = $2,
-        solde_initial = $3,
-        devise = $4
-      WHERE id = $5
-        AND utilisateur_id = $6
-      RETURNING *
-    `,
+    `UPDATE compte
+     SET
+       nom = $1,
+       type_compte = $2,
+       sous_type_compte = $3,
+       solde_initial = $4,
+       devise = $5
+     WHERE id = $6
+       AND utilisateur_id = $7
+     RETURNING *`,
     [
       nom,
       type_compte,
+      sous_type_compte,
       solde_initial,
       devise,
       id,
-      // 🟨 NOUVEAU
       utilisateurId,
     ]
   )
@@ -162,27 +124,16 @@ export const updateCompte = async (
 }
 
 /*
-  Supprime un compte uniquement s’il appartient
-  à l’utilisateur authentifié.
-
-  RETURNING renvoie le compte supprimé.
+  Supprime un compte seulement s'il appartient
+  à l'utilisateur authentifié.
 */
-export const deleteCompte = async (
-  id,
-  utilisateurId
-) => {
+export const deleteCompte = async (id, utilisateurId) => {
   const result = await pool.query(
-    `
-      DELETE FROM compte
-      WHERE id = $1
-        AND utilisateur_id = $2
-      RETURNING *
-    `,
-    [
-      id,
-      // 🟨 NOUVEAU
-      utilisateurId,
-    ]
+    `DELETE FROM compte
+     WHERE id = $1
+       AND utilisateur_id = $2
+     RETURNING *`,
+    [id, utilisateurId]
   )
 
   return result.rows[0]
