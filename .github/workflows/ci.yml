@@ -107,7 +107,8 @@ jobs:
             --port="$DB_PORT" \
             --username="$DB_USER" \
             --dbname="$DB_NAME" \
-            --file=database/schema.sql
+            --file=database/schema.sql \
+            --file=database/migrations/001_add_account_subtype.sql
 
       - name: Start backend
         working-directory: backend
