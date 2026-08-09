@@ -1,55 +1,42 @@
 #!/usr/bin/env bash
 
 # ============================================================
-# TEST CRUD COMPLET DE FINANCEPILOT
+# FINANCEPILOT - COMPLETE CRUD API TEST
 # ============================================================
 #
-# Ce script teste les 8 ressources principales du backend :
+# Role:
+# - creates one isolated user and the data it needs;
+# - tests Create, Read and Update for the 8 API resources;
+# - deletes the test data in dependency order at the end.
 #
-# 1. utilisateurs
-# 2. comptes
-# 3. catégories
-# 4. transactions
-# 5. budgets
-# 6. objectifs
-# 7. actifs financiers
-# 8. opérations d’investissement
-#
-# Pour chaque ressource, le script vérifie :
-#
-# CREATE  → création
-# READ    → lecture
-# UPDATE  → modification
-# DELETE  → suppression
-#
-# Prérequis :
-# - le backend doit fonctionner sur localhost:3000 ;
-# - PostgreSQL doit être démarré ;
-# - jq doit être installé.
-#
-# Le script crée ses propres données puis les supprime.
+# The script is intentionally linear: each resource uses the identifiers
+# created by the previous resources. New CRUD blocks can follow the same model.
 # ============================================================
 
-set -e
+set -Eeuo pipefail
 
 API_URL="http://localhost:3000/api"
-
-# 🟨 NOUVEAU
-# Fichier contenant la dernière réponse JSON reçue.
-FICHIER_REPONSE="/tmp/reponse-financepilot.json"
-
-# 🟨 NOUVEAU
-# Le jeton reste vide jusqu’à la connexion.
-# Dès qu’il reçoit une valeur, requete_http() l’envoie automatiquement.
+RESPONSE_FILE="/tmp/reponse-financepilot.json"
 TOKEN=""
-
-# Identifiant unique utilisé pour éviter les doublons
 TIMESTAMP=$(date +%s)
+DATE_TEST=$(date "+%Y-%m-%d")
+MOIS_TEST=$(date "+%-m")
+ANNEE_TEST=$(date "+%Y")
+EMAIL_TEST="crud-${TIMESTAMP}@financepilot.test"
+MOT_DE_PASSE_INITIAL="TestFinance123!"
+MOT_DE_PASSE_MODIFIE="TestFinance456!"
 
-# ------------------------------------------------------------
-# Affichage des étapes
-# ------------------------------------------------------------
+nettoyer_fichier_reponse() {
+  rm -f "$RESPONSE_FILE"
+}
 
+trap nettoyer_fichier_reponse EXIT
+
+# ============================================================
+# FONCTIONS COMMUNES
+# ============================================================
+
+# Affiche un titre homogène pour chaque étape du test.
 afficher_etape() {
   echo
   echo "=================================================="
@@ -57,14 +44,11 @@ afficher_etape() {
   echo "=================================================="
 }
 
-# ------------------------------------------------------------
-# Vérification du code HTTP
-# ------------------------------------------------------------
-
+# Arrête le script si le code HTTP est différent de celui attendu.
 verifier_code_http() {
-  code_recu="$1"
-  code_attendu="$2"
-  nom_test="$3"
+  local code_recu="$1"
+  local code_attendu="$2"
+  local nom_test="$3"
 
   if [ "$code_recu" != "$code_attendu" ]; then
     echo "❌ ÉCHEC : $nom_test"
@@ -72,70 +56,63 @@ verifier_code_http() {
     echo "Code reçu    : $code_recu"
     echo
     echo "Réponse reçue :"
-    cat "$FICHIER_REPONSE"
-    echo
+    cat "$RESPONSE_FILE"
     exit 1
   fi
 
   echo "✅ $nom_test → HTTP $code_recu"
-}
+} 
 
-# ------------------------------------------------------------
-# Requête HTTP
-#
-# La réponse JSON est placée dans "$FICHIER_REPONSE".
-# Le code HTTP est renvoyé par la fonction.
-# ------------------------------------------------------------
-
+# Envoie une requête API, sauvegarde sa réponse JSON et renvoie son code HTTP.
+# Le JWT est ajouté automatiquement dès que TOKEN contient une valeur.
 requete_http() {
-  methode="$1"
-  url="$2"
-  donnees="${3:-}"
+  local methode="$1"
+  local url="$2"
+  local donnees="${3:-}"
+  local options_curl=(-sS -o "$RESPONSE_FILE" -w "%{http_code}" -X "$methode")
 
-  # 🟨 CORRIGÉ
-  # Données JSON + JWT : POST ou PUT protégé.
-  if [ -n "$donnees" ] && [ -n "$TOKEN" ]; then
-    curl -sS \
-      -o "$FICHIER_REPONSE" \
-      -w "%{http_code}" \
-      -X "$methode" \
-      -H "Content-Type: application/json" \
-      -H "Authorization: Bearer $TOKEN" \
-      -d "$donnees" \
-      "$url"
-
-  # Données JSON sans JWT : création publique et connexion.
-  elif [ -n "$donnees" ]; then
-    curl -sS \
-      -o "$FICHIER_REPONSE" \
-      -w "%{http_code}" \
-      -X "$methode" \
-      -H "Content-Type: application/json" \
-      -d "$donnees" \
-      "$url"
-
-  # JWT sans données JSON : GET ou DELETE protégé.
-  elif [ -n "$TOKEN" ]; then
-    curl -sS \
-      -o "$FICHIER_REPONSE" \
-      -w "%{http_code}" \
-      -X "$methode" \
-      -H "Authorization: Bearer $TOKEN" \
-      "$url"
-
-  # Aucune donnée et aucun JWT : route publique de disponibilité.
-  else
-    curl -sS \
-      -o "$FICHIER_REPONSE" \
-      -w "%{http_code}" \
-      -X "$methode" \
-      "$url"
+  if [ -n "$donnees" ]; then
+    options_curl+=(-H "Content-Type: application/json" -d "$donnees")
   fi
+
+  if [ -n "$TOKEN" ]; then
+    options_curl+=(-H "Authorization: Bearer $TOKEN")
+  fi
+
+  curl "${options_curl[@]}" "$url"
 }
 
-# ------------------------------------------------------------
-# Vérification des prérequis
-# ------------------------------------------------------------
+# Extrait l'identifiant de la dernière réponse JSON et vérifie sa présence.
+recuperer_identifiant() {
+  local nom_ressource="$1"
+  local identifiant
+
+  identifiant=$(jq -r '.id // empty' "$RESPONSE_FILE")
+
+  if [ -z "$identifiant" ]; then
+    echo "❌ L'identifiant de $nom_ressource est absent de la réponse."
+    cat "$RESPONSE_FILE"
+    exit 1
+  fi
+
+  printf '%s' "$identifiant"
+}
+
+# Supprime une ressource à partir de sa route et de son identifiant.
+# Cette fonction évite de répéter le même bloc DELETE pour chaque future ressource.
+supprimer_ressource() {
+  local route="$1"
+  local identifiant="$2"
+  local nom_test="$3"
+  local code_http
+
+  code_http=$(requete_http "DELETE" "$API_URL/$route/$identifiant")
+  verifier_code_http "$code_http" "200" "$nom_test"
+}
+
+# ============================================================
+# PREREQUIS
+# ============================================================
 
 afficher_etape "VÉRIFICATION DES PRÉREQUIS"
 
@@ -151,543 +128,289 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 CODE_HTTP=$(requete_http "GET" "http://localhost:3000/")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Backend accessible"
+verifier_code_http "$CODE_HTTP" "200" "Backend accessible"
 
 # ============================================================
-# 1. UTILISATEUR
+# 1. USER CRUD
 # ============================================================
 
 afficher_etape "1. CRUD UTILISATEUR"
 
-EMAIL_TEST="crud-${TIMESTAMP}@financepilot.test"
+CODE_HTTP=$(requete_http "POST" "$API_URL/utilisateurs" "{
+  \"nom\": \"CRUD\",
+  \"prenom\": \"Test\",
+  \"email\": \"$EMAIL_TEST\",
+  \"mot_de_passe\": \"$MOT_DE_PASSE_INITIAL\"
+}")
+verifier_code_http "$CODE_HTTP" "201" "Création utilisateur"
 
-CODE_HTTP=$(requete_http \
-  "POST" \
-  "$API_URL/utilisateurs" \
-  "{
-    \"nom\": \"CRUD\",
-    \"prenom\": \"Test\",
-    \"email\": \"$EMAIL_TEST\",
-    \"mot_de_passe\": \"TestFinance123!\"
-  }")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "201" \
-  "Création utilisateur"
-
-UTILISATEUR_ID=$(jq -r '.id' "$FICHIER_REPONSE")
-
+UTILISATEUR_ID=$(recuperer_identifiant "l'utilisateur")
 echo "Utilisateur créé avec l’identifiant : $UTILISATEUR_ID"
 
 # ============================================================
-# AUTHENTIFICATION POUR LES ROUTES PROTÉGÉES
+# AUTHENTICATION FOR PROTECTED ROUTES
 # ============================================================
 
-# 🟨 NOUVEAU
-# La création de l’utilisateur est publique.
-# On se connecte ensuite pour obtenir le JWT nécessaire aux CRUD.
 afficher_etape "AUTHENTIFICATION POUR LES ROUTES PROTÉGÉES"
 
-CODE_HTTP=$(requete_http \
-  "POST" \
-  "$API_URL/auth/connexion" \
-  "{
-    \"email\": \"$EMAIL_TEST\",
-    \"mot_de_passe\": \"TestFinance123!\"
-  }")
+CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
+  \"email\": \"$EMAIL_TEST\",
+  \"mot_de_passe\": \"$MOT_DE_PASSE_INITIAL\"
+}")
+verifier_code_http "$CODE_HTTP" "200" "Connexion utilisateur"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Connexion utilisateur"
+TOKEN=$(jq -r '.token // empty' "$RESPONSE_FILE")
 
-TOKEN=$(jq -r '.token' "$FICHIER_REPONSE")
-
-if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+if [ -z "$TOKEN" ]; then
   echo "❌ Le JWT est absent de la réponse de connexion."
-  echo "Réponse reçue :"
-  cat "$FICHIER_REPONSE"
+  cat "$RESPONSE_FILE"
   exit 1
 fi
 
 echo "✅ JWT récupéré"
 
-CODE_HTTP=$(requete_http \
-  "GET" \
-  "$API_URL/utilisateurs/$UTILISATEUR_ID")
+CODE_HTTP=$(requete_http "GET" "$API_URL/utilisateurs/$UTILISATEUR_ID")
+verifier_code_http "$CODE_HTTP" "200" "Lecture utilisateur"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Lecture utilisateur"
-
-CODE_HTTP=$(requete_http \
-  "PUT" \
-  "$API_URL/utilisateurs/$UTILISATEUR_ID" \
-  "{
-    \"nom\": \"CRUD modifié\",
-    \"prenom\": \"Test\",
-    \"email\": \"$EMAIL_TEST\",
-    \"mot_de_passe\": \"TestFinance456!\"
-  }")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Modification utilisateur"
+CODE_HTTP=$(requete_http "PUT" "$API_URL/utilisateurs/$UTILISATEUR_ID" "{
+  \"nom\": \"CRUD modifié\",
+  \"prenom\": \"Test\",
+  \"email\": \"$EMAIL_TEST\",
+  \"mot_de_passe\": \"$MOT_DE_PASSE_MODIFIE\"
+}")
+verifier_code_http "$CODE_HTTP" "200" "Modification utilisateur"
 
 # ============================================================
-# 2. COMPTE
+# 2. ACCOUNT CRUD
 # ============================================================
+# 🟨 CORRIGÉ
+# type_compte and sous_type_compte must always be coherent.
 
 afficher_etape "2. CRUD COMPTE"
 
-CODE_HTTP=$(requete_http \
-  "POST" \
-  "$API_URL/comptes" \
-  "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
-    \"nom\": \"Compte CRUD\",
-    \"type_compte\": \"courant\",
-    \"solde_initial\": 1000,
-    \"devise\": \"EUR\"
-  }")
+CODE_HTTP=$(requete_http "POST" "$API_URL/comptes" "{
+  \"utilisateur_id\": $UTILISATEUR_ID,
+  \"nom\": \"Compte CRUD\",
+  \"type_compte\": \"courant\",
+  \"sous_type_compte\": \"compte_courant\",
+  \"solde_initial\": 1000,
+  \"devise\": \"EUR\"
+}")
+verifier_code_http "$CODE_HTTP" "201" "Création compte"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "201" \
-  "Création compte"
-
-COMPTE_ID=$(jq -r '.id' "$FICHIER_REPONSE")
-
+COMPTE_ID=$(recuperer_identifiant "le compte")
 echo "Compte créé avec l’identifiant : $COMPTE_ID"
 
-CODE_HTTP=$(requete_http \
-  "GET" \
-  "$API_URL/comptes/$COMPTE_ID")
+CODE_HTTP=$(requete_http "GET" "$API_URL/comptes/$COMPTE_ID")
+verifier_code_http "$CODE_HTTP" "200" "Lecture compte"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Lecture compte"
-
-CODE_HTTP=$(requete_http \
-  "PUT" \
-  "$API_URL/comptes/$COMPTE_ID" \
-  "{
-    \"nom\": \"Compte CRUD modifié\",
-    \"type_compte\": \"courant\",
-    \"solde_initial\": 1500,
-    \"devise\": \"EUR\"
-  }")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Modification compte"
+CODE_HTTP=$(requete_http "PUT" "$API_URL/comptes/$COMPTE_ID" "{
+  \"nom\": \"Compte CRUD modifié\",
+  \"type_compte\": \"courant\",
+  \"sous_type_compte\": \"compte_courant\",
+  \"solde_initial\": 1500,
+  \"devise\": \"EUR\"
+}")
+verifier_code_http "$CODE_HTTP" "200" "Modification compte"
 
 # ============================================================
-# 3. CATÉGORIE
+# 3. CATEGORY CRUD
 # ============================================================
 
 afficher_etape "3. CRUD CATÉGORIE"
 
-CODE_HTTP=$(requete_http \
-  "POST" \
-  "$API_URL/categories" \
-  "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
-    \"nom\": \"Catégorie CRUD $TIMESTAMP\",
-    \"type_categorie\": \"depense\"
-  }")
+CODE_HTTP=$(requete_http "POST" "$API_URL/categories" "{
+  \"utilisateur_id\": $UTILISATEUR_ID,
+  \"nom\": \"Catégorie CRUD $TIMESTAMP\",
+  \"type_categorie\": \"depense\"
+}")
+verifier_code_http "$CODE_HTTP" "201" "Création catégorie"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "201" \
-  "Création catégorie"
-
-CATEGORIE_ID=$(jq -r '.id' "$FICHIER_REPONSE")
-
+CATEGORIE_ID=$(recuperer_identifiant "la catégorie")
 echo "Catégorie créée avec l’identifiant : $CATEGORIE_ID"
 
-CODE_HTTP=$(requete_http \
-  "GET" \
-  "$API_URL/categories/$CATEGORIE_ID")
+CODE_HTTP=$(requete_http "GET" "$API_URL/categories/$CATEGORIE_ID")
+verifier_code_http "$CODE_HTTP" "200" "Lecture catégorie"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Lecture catégorie"
-
-CODE_HTTP=$(requete_http \
-  "PUT" \
-  "$API_URL/categories/$CATEGORIE_ID" \
-  "{
-    \"nom\": \"Catégorie CRUD modifiée $TIMESTAMP\",
-    \"type_categorie\": \"depense\"
-  }")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Modification catégorie"
+CODE_HTTP=$(requete_http "PUT" "$API_URL/categories/$CATEGORIE_ID" "{
+  \"nom\": \"Catégorie CRUD modifiée $TIMESTAMP\",
+  \"type_categorie\": \"depense\"
+}")
+verifier_code_http "$CODE_HTTP" "200" "Modification catégorie"
 
 # ============================================================
-# 4. TRANSACTION
+# 4. TRANSACTION CRUD
 # ============================================================
 
 afficher_etape "4. CRUD TRANSACTION"
 
-DATE_TEST=$(date "+%Y-%m-%d")
+CODE_HTTP=$(requete_http "POST" "$API_URL/transactions" "{
+  \"compte_id\": $COMPTE_ID,
+  \"categorie_id\": $CATEGORIE_ID,
+  \"libelle\": \"Transaction CRUD\",
+  \"montant\": 42.50,
+  \"date_transaction\": \"$DATE_TEST\",
+  \"type_transaction\": \"depense\"
+}")
+verifier_code_http "$CODE_HTTP" "201" "Création transaction"
 
-CODE_HTTP=$(requete_http \
-  "POST" \
-  "$API_URL/transactions" \
-  "{
-    \"compte_id\": $COMPTE_ID,
-    \"categorie_id\": $CATEGORIE_ID,
-    \"libelle\": \"Transaction CRUD\",
-    \"montant\": 42.50,
-    \"date_transaction\": \"$DATE_TEST\",
-    \"type_transaction\": \"depense\"
-  }")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "201" \
-  "Création transaction"
-
-TRANSACTION_ID=$(jq -r '.id' "$FICHIER_REPONSE")
-
+TRANSACTION_ID=$(recuperer_identifiant "la transaction")
 echo "Transaction créée avec l’identifiant : $TRANSACTION_ID"
 
-CODE_HTTP=$(requete_http \
-  "GET" \
-  "$API_URL/transactions/$TRANSACTION_ID")
+CODE_HTTP=$(requete_http "GET" "$API_URL/transactions/$TRANSACTION_ID")
+verifier_code_http "$CODE_HTTP" "200" "Lecture transaction"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Lecture transaction"
-
-CODE_HTTP=$(requete_http \
-  "PUT" \
-  "$API_URL/transactions/$TRANSACTION_ID" \
-  "{
-    \"compte_id\": $COMPTE_ID,
-    \"categorie_id\": $CATEGORIE_ID,
-    \"libelle\": \"Transaction CRUD modifiée\",
-    \"montant\": 50,
-    \"date_transaction\": \"$DATE_TEST\",
-    \"type_transaction\": \"depense\"
-  }")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Modification transaction"
+CODE_HTTP=$(requete_http "PUT" "$API_URL/transactions/$TRANSACTION_ID" "{
+  \"compte_id\": $COMPTE_ID,
+  \"categorie_id\": $CATEGORIE_ID,
+  \"libelle\": \"Transaction CRUD modifiée\",
+  \"montant\": 50,
+  \"date_transaction\": \"$DATE_TEST\",
+  \"type_transaction\": \"depense\"
+}")
+verifier_code_http "$CODE_HTTP" "200" "Modification transaction"
 
 # ============================================================
-# 5. BUDGET
+# 5. BUDGET CRUD
 # ============================================================
 
 afficher_etape "5. CRUD BUDGET"
 
-MOIS_TEST=$(date "+%-m")
-ANNEE_TEST=$(date "+%Y")
+CODE_HTTP=$(requete_http "POST" "$API_URL/budgets" "{
+  \"utilisateur_id\": $UTILISATEUR_ID,
+  \"categorie_id\": $CATEGORIE_ID,
+  \"montant_limite\": 500,
+  \"mois\": $MOIS_TEST,
+  \"annee\": $ANNEE_TEST
+}")
+verifier_code_http "$CODE_HTTP" "201" "Création budget"
 
-CODE_HTTP=$(requete_http \
-  "POST" \
-  "$API_URL/budgets" \
-  "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
-    \"categorie_id\": $CATEGORIE_ID,
-    \"montant_limite\": 500,
-    \"mois\": $MOIS_TEST,
-    \"annee\": $ANNEE_TEST
-  }")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "201" \
-  "Création budget"
-
-BUDGET_ID=$(jq -r '.id' "$FICHIER_REPONSE")
-
+BUDGET_ID=$(recuperer_identifiant "le budget")
 echo "Budget créé avec l’identifiant : $BUDGET_ID"
 
-CODE_HTTP=$(requete_http \
-  "GET" \
-  "$API_URL/budgets/$BUDGET_ID")
+CODE_HTTP=$(requete_http "GET" "$API_URL/budgets/$BUDGET_ID")
+verifier_code_http "$CODE_HTTP" "200" "Lecture budget"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Lecture budget"
-
-CODE_HTTP=$(requete_http \
-  "PUT" \
-  "$API_URL/budgets/$BUDGET_ID" \
-  "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
-    \"categorie_id\": $CATEGORIE_ID,
-    \"montant_limite\": 650,
-    \"mois\": $MOIS_TEST,
-    \"annee\": $ANNEE_TEST
-  }")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Modification budget"
+CODE_HTTP=$(requete_http "PUT" "$API_URL/budgets/$BUDGET_ID" "{
+  \"utilisateur_id\": $UTILISATEUR_ID,
+  \"categorie_id\": $CATEGORIE_ID,
+  \"montant_limite\": 650,
+  \"mois\": $MOIS_TEST,
+  \"annee\": $ANNEE_TEST
+}")
+verifier_code_http "$CODE_HTTP" "200" "Modification budget"
 
 # ============================================================
-# 6. OBJECTIF
+# 6. GOAL CRUD
 # ============================================================
 
 afficher_etape "6. CRUD OBJECTIF"
 
-CODE_HTTP=$(requete_http \
-  "POST" \
-  "$API_URL/objectifs" \
-  "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
-    \"nom\": \"Objectif CRUD\",
-    \"montant_cible\": 10000,
-    \"montant_actuel\": 1000,
-    \"date_echeance\": \"2030-12-31\",
-    \"statut\": \"en cours\"
-  }")
+CODE_HTTP=$(requete_http "POST" "$API_URL/objectifs" "{
+  \"utilisateur_id\": $UTILISATEUR_ID,
+  \"nom\": \"Objectif CRUD\",
+  \"montant_cible\": 10000,
+  \"montant_actuel\": 1000,
+  \"date_echeance\": \"2030-12-31\",
+  \"statut\": \"en cours\"
+}")
+verifier_code_http "$CODE_HTTP" "201" "Création objectif"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "201" \
-  "Création objectif"
-
-OBJECTIF_ID=$(jq -r '.id' "$FICHIER_REPONSE")
-
+OBJECTIF_ID=$(recuperer_identifiant "l'objectif")
 echo "Objectif créé avec l’identifiant : $OBJECTIF_ID"
 
-CODE_HTTP=$(requete_http \
-  "GET" \
-  "$API_URL/objectifs/$OBJECTIF_ID")
+CODE_HTTP=$(requete_http "GET" "$API_URL/objectifs/$OBJECTIF_ID")
+verifier_code_http "$CODE_HTTP" "200" "Lecture objectif"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Lecture objectif"
-
-CODE_HTTP=$(requete_http \
-  "PUT" \
-  "$API_URL/objectifs/$OBJECTIF_ID" \
-  "{
-    \"utilisateur_id\": $UTILISATEUR_ID,
-    \"nom\": \"Objectif CRUD modifié\",
-    \"montant_cible\": 12000,
-    \"montant_actuel\": 1500,
-    \"date_echeance\": \"2030-12-31\",
-    \"statut\": \"en cours\"
-  }")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Modification objectif"
+CODE_HTTP=$(requete_http "PUT" "$API_URL/objectifs/$OBJECTIF_ID" "{
+  \"utilisateur_id\": $UTILISATEUR_ID,
+  \"nom\": \"Objectif CRUD modifié\",
+  \"montant_cible\": 12000,
+  \"montant_actuel\": 1500,
+  \"date_echeance\": \"2030-12-31\",
+  \"statut\": \"en cours\"
+}")
+verifier_code_http "$CODE_HTTP" "200" "Modification objectif"
 
 # ============================================================
-# 7. ACTIF FINANCIER
+# 7. FINANCIAL ASSET CRUD
 # ============================================================
 
 afficher_etape "7. CRUD ACTIF FINANCIER"
 
 SYMBOLE_TEST="TST${TIMESTAMP}"
 
-CODE_HTTP=$(requete_http \
-  "POST" \
-  "$API_URL/actifs-financiers" \
-  "{
-    \"symbole\": \"$SYMBOLE_TEST\",
-    \"nom\": \"Actif CRUD\",
-    \"type_actif\": \"action\",
-    \"devise\": \"EUR\"
-  }")
+CODE_HTTP=$(requete_http "POST" "$API_URL/actifs-financiers" "{
+  \"symbole\": \"$SYMBOLE_TEST\",
+  \"nom\": \"Actif CRUD\",
+  \"type_actif\": \"action\",
+  \"devise\": \"EUR\"
+}")
+verifier_code_http "$CODE_HTTP" "201" "Création actif financier"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "201" \
-  "Création actif financier"
-
-ACTIF_ID=$(jq -r '.id' "$FICHIER_REPONSE")
-
+ACTIF_ID=$(recuperer_identifiant "l'actif financier")
 echo "Actif créé avec l’identifiant : $ACTIF_ID"
 
-CODE_HTTP=$(requete_http \
-  "GET" \
-  "$API_URL/actifs-financiers/$ACTIF_ID")
+CODE_HTTP=$(requete_http "GET" "$API_URL/actifs-financiers/$ACTIF_ID")
+verifier_code_http "$CODE_HTTP" "200" "Lecture actif financier"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Lecture actif financier"
-
-CODE_HTTP=$(requete_http \
-  "PUT" \
-  "$API_URL/actifs-financiers/$ACTIF_ID" \
-  "{
-    \"symbole\": \"$SYMBOLE_TEST\",
-    \"nom\": \"Actif CRUD modifié\",
-    \"type_actif\": \"action\",
-    \"devise\": \"EUR\"
-  }")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Modification actif financier"
+CODE_HTTP=$(requete_http "PUT" "$API_URL/actifs-financiers/$ACTIF_ID" "{
+  \"symbole\": \"$SYMBOLE_TEST\",
+  \"nom\": \"Actif CRUD modifié\",
+  \"type_actif\": \"action\",
+  \"devise\": \"EUR\"
+}")
+verifier_code_http "$CODE_HTTP" "200" "Modification actif financier"
 
 # ============================================================
-# 8. OPÉRATION D’INVESTISSEMENT
+# 8. INVESTMENT OPERATION CRUD
 # ============================================================
 
 afficher_etape "8. CRUD OPÉRATION D’INVESTISSEMENT"
 
-CODE_HTTP=$(requete_http \
-  "POST" \
-  "$API_URL/operations-investissement" \
-  "{
-    \"compte_id\": $COMPTE_ID,
-    \"actif_financier_id\": $ACTIF_ID,
-    \"type_operation\": \"achat\",
-    \"quantite\": 2,
-    \"prix_unitaire\": 100,
-    \"frais\": 1.50,
-    \"date_operation\": \"$DATE_TEST\"
-  }")
+CODE_HTTP=$(requete_http "POST" "$API_URL/operations-investissement" "{
+  \"compte_id\": $COMPTE_ID,
+  \"actif_financier_id\": $ACTIF_ID,
+  \"type_operation\": \"achat\",
+  \"quantite\": 2,
+  \"prix_unitaire\": 100,
+  \"frais\": 1.50,
+  \"date_operation\": \"$DATE_TEST\"
+}")
+verifier_code_http "$CODE_HTTP" "201" "Création opération d’investissement"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "201" \
-  "Création opération d’investissement"
-
-OPERATION_ID=$(jq -r '.id' "$FICHIER_REPONSE")
-
+OPERATION_ID=$(recuperer_identifiant "l'opération d'investissement")
 echo "Opération créée avec l’identifiant : $OPERATION_ID"
 
-CODE_HTTP=$(requete_http \
-  "GET" \
-  "$API_URL/operations-investissement/$OPERATION_ID")
+CODE_HTTP=$(requete_http "GET" "$API_URL/operations-investissement/$OPERATION_ID")
+verifier_code_http "$CODE_HTTP" "200" "Lecture opération d’investissement"
 
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Lecture opération d’investissement"
-
-CODE_HTTP=$(requete_http \
-  "PUT" \
-  "$API_URL/operations-investissement/$OPERATION_ID" \
-  "{
-    \"compte_id\": $COMPTE_ID,
-    \"actif_financier_id\": $ACTIF_ID,
-    \"type_operation\": \"achat\",
-    \"quantite\": 3,
-    \"prix_unitaire\": 110,
-    \"frais\": 2,
-    \"date_operation\": \"$DATE_TEST\"
-  }")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Modification opération d’investissement"
+CODE_HTTP=$(requete_http "PUT" "$API_URL/operations-investissement/$OPERATION_ID" "{
+  \"compte_id\": $COMPTE_ID,
+  \"actif_financier_id\": $ACTIF_ID,
+  \"type_operation\": \"achat\",
+  \"quantite\": 3,
+  \"prix_unitaire\": 110,
+  \"frais\": 2,
+  \"date_operation\": \"$DATE_TEST\"
+}")
+verifier_code_http "$CODE_HTTP" "200" "Modification opération d’investissement"
 
 # ============================================================
-# SUPPRESSION
-#
-# L’ordre est important :
-# on supprime d’abord les ressources dépendantes,
-# puis les ressources dont elles dépendent.
+# TEST DATA CLEANUP
 # ============================================================
+# Delete children before their parents to respect PostgreSQL foreign keys.
 
 afficher_etape "SUPPRESSION DES DONNÉES DE TEST"
 
-CODE_HTTP=$(requete_http \
-  "DELETE" \
-  "$API_URL/operations-investissement/$OPERATION_ID")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Suppression opération d’investissement"
-
-CODE_HTTP=$(requete_http \
-  "DELETE" \
-  "$API_URL/actifs-financiers/$ACTIF_ID")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Suppression actif financier"
-
-CODE_HTTP=$(requete_http \
-  "DELETE" \
-  "$API_URL/objectifs/$OBJECTIF_ID")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Suppression objectif"
-
-CODE_HTTP=$(requete_http \
-  "DELETE" \
-  "$API_URL/budgets/$BUDGET_ID")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Suppression budget"
-
-CODE_HTTP=$(requete_http \
-  "DELETE" \
-  "$API_URL/transactions/$TRANSACTION_ID")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Suppression transaction"
-
-CODE_HTTP=$(requete_http \
-  "DELETE" \
-  "$API_URL/categories/$CATEGORIE_ID")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Suppression catégorie"
-
-CODE_HTTP=$(requete_http \
-  "DELETE" \
-  "$API_URL/comptes/$COMPTE_ID")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Suppression compte"
-
-CODE_HTTP=$(requete_http \
-  "DELETE" \
-  "$API_URL/utilisateurs/$UTILISATEUR_ID")
-
-verifier_code_http \
-  "$CODE_HTTP" \
-  "200" \
-  "Suppression utilisateur"
+supprimer_ressource "operations-investissement" "$OPERATION_ID" "Suppression opération d’investissement"
+supprimer_ressource "actifs-financiers" "$ACTIF_ID" "Suppression actif financier"
+supprimer_ressource "objectifs" "$OBJECTIF_ID" "Suppression objectif"
+supprimer_ressource "budgets" "$BUDGET_ID" "Suppression budget"
+supprimer_ressource "transactions" "$TRANSACTION_ID" "Suppression transaction"
+supprimer_ressource "categories" "$CATEGORIE_ID" "Suppression catégorie"
+supprimer_ressource "comptes" "$COMPTE_ID" "Suppression compte"
+supprimer_ressource "utilisateurs" "$UTILISATEUR_ID" "Suppression utilisateur"
 
 TOKEN=""
-rm -f "$FICHIER_REPONSE"
-
 afficher_etape "✅ LES 8 CRUD FONCTIONNENT"
