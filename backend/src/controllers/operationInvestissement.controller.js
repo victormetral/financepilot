@@ -1,6 +1,12 @@
 /*
   CONTRÔLEUR DES OPÉRATIONS D'INVESTISSEMENT
 
+  Depuis Lot 3 :
+  - plus de try/catch générique ; asyncHandler transmet
+    toute erreur non gérée à erreurGlobale.middleware.js ;
+  - les erreurs métier (400, 404, 409) sont levées
+    explicitement via ErreurHTTP.
+
   Utilise :
   - operationInvestissement.validator.js ;
   - operationInvestissement.service.js ;
@@ -10,9 +16,9 @@
   une opération appartient au propriétaire de son compte.
 */
 
-import {
-  estErreurCleEtrangere,
-} from "../utils/postgres.utils.js"
+import { asyncHandler } from "../middlewares/asyncHandler.middleware.js"
+import { ErreurHTTP } from "../utils/erreurHttp.utils.js"
+import { estErreurCleEtrangere } from "../utils/postgres.utils.js"
 
 import {
   findAllOperationsInvestissement,
@@ -28,205 +34,144 @@ import {
   validerModificationOperationInvestissement,
 } from "../validators/operationInvestissement.validator.js"
 
-export const getOperationsInvestissement =
+export const getOperationsInvestissement = asyncHandler(
   async (request, response) => {
-    try {
-      // 🟨 CORRIGÉ : liste limitée aux comptes du JWT.
-      const operations =
-        await findAllOperationsInvestissement(
-          request.utilisateur.utilisateurId
-        )
+    // Liste limitée aux comptes du JWT.
+    const operations = await findAllOperationsInvestissement(
+      request.utilisateur.utilisateurId
+    )
 
-      response.json(operations)
-    } catch (error) {
-      response.status(500).json({
-        message:
-          "Erreur lors de la récupération des opérations d’investissement",
-        error: error.message,
-      })
-    }
+    response.json(operations)
   }
+)
 
-export const getOperationInvestissementById =
+export const getOperationInvestissementById = asyncHandler(
   async (request, response) => {
-    try {
-      const validation =
-        validerIdOperationInvestissement(
-          request.params.id
-        )
+    const validation = validerIdOperationInvestissement(request.params.id)
 
-      if (!validation.estValide) {
-        return response.status(400).json({
-          message: validation.message,
-        })
-      }
-
-      // 🟨 CORRIGÉ : identifiant + propriétaire.
-      const operation =
-        await findOperationInvestissementById(
-          validation.donnees.id,
-          request.utilisateur.utilisateurId
-        )
-
-      if (!operation) {
-        return response.status(404).json({
-          message:
-            "Opération d’investissement introuvable",
-        })
-      }
-
-      response.json(operation)
-    } catch (error) {
-      response.status(500).json({
-        message:
-          "Erreur lors de la récupération de l’opération d’investissement",
-        error: error.message,
-      })
+    if (!validation.estValide) {
+      throw new ErreurHTTP(400, validation.message)
     }
+
+    // Identifiant + propriétaire.
+    const operation = await findOperationInvestissementById(
+      validation.donnees.id,
+      request.utilisateur.utilisateurId
+    )
+
+    if (!operation) {
+      throw new ErreurHTTP(404, "Opération d'investissement introuvable")
+    }
+
+    response.json(operation)
   }
+)
 
-export const postOperationInvestissement =
+/*
+  Crée une opération. Try/catch local conservé : seul cas
+  pg possible ici, 23503 (compte ou actif inexistant).
+*/
+export const postOperationInvestissement = asyncHandler(
   async (request, response) => {
+    const validation = validerCreationOperationInvestissement(request.body)
+
+    if (!validation.estValide) {
+      throw new ErreurHTTP(400, validation.message)
+    }
+
     try {
-      const validation =
-        validerCreationOperationInvestissement(
-          request.body
-        )
-
-      if (!validation.estValide) {
-        return response.status(400).json({
-          message: validation.message,
-        })
-      }
-
-      // 🟨 CORRIGÉ : vérifie le propriétaire du compte.
-      const nouvelleOperation =
-        await createOperationInvestissement(
-          request.utilisateur.utilisateurId,
-          validation.donnees
-        )
+      // Vérifie le propriétaire du compte.
+      const nouvelleOperation = await createOperationInvestissement(
+        request.utilisateur.utilisateurId,
+        validation.donnees
+      )
 
       if (!nouvelleOperation) {
-        return response.status(404).json({
-          message:
-            "Compte ou actif financier introuvable",
-        })
+        throw new ErreurHTTP(404, "Compte ou actif financier introuvable")
       }
 
-      response
-        .status(201)
-        .json(nouvelleOperation)
+      response.status(201).json(nouvelleOperation)
     } catch (error) {
-      if (estErreurCleEtrangere(error)) {
-        return response.status(409).json({
-          message:
-            "Le compte ou l’actif financier indiqué n’existe pas",
-        })
-      }
+      if (error instanceof ErreurHTTP) throw error
 
-      response.status(500).json({
-        message:
-          "Erreur lors de la création de l’opération d’investissement",
-        error: error.message,
-      })
+      if (estErreurCleEtrangere(error)) {
+        throw new ErreurHTTP(
+          409,
+          "Le compte ou l'actif financier indiqué n'existe pas"
+        )
+      }
+      throw error
     }
   }
+)
 
-export const putOperationInvestissement =
+export const putOperationInvestissement = asyncHandler(
   async (request, response) => {
+    const validationId = validerIdOperationInvestissement(request.params.id)
+
+    if (!validationId.estValide) {
+      throw new ErreurHTTP(400, validationId.message)
+    }
+
+    const validationDonnees = validerModificationOperationInvestissement(
+      request.body
+    )
+
+    if (!validationDonnees.estValide) {
+      throw new ErreurHTTP(400, validationDonnees.message)
+    }
+
     try {
-      const validationId =
-        validerIdOperationInvestissement(
-          request.params.id
-        )
-
-      if (!validationId.estValide) {
-        return response.status(400).json({
-          message: validationId.message,
-        })
-      }
-
-      const validationDonnees =
-        validerModificationOperationInvestissement(
-          request.body
-        )
-
-      if (!validationDonnees.estValide) {
-        return response.status(400).json({
-          message: validationDonnees.message,
-        })
-      }
-
-      // 🟨 CORRIGÉ : opération et nouveau compte contrôlés.
-      const operationModifiee =
-        await updateOperationInvestissement(
-          validationId.donnees.id,
-          request.utilisateur.utilisateurId,
-          validationDonnees.donnees
-        )
+      // Opération et nouveau compte contrôlés.
+      const operationModifiee = await updateOperationInvestissement(
+        validationId.donnees.id,
+        request.utilisateur.utilisateurId,
+        validationDonnees.donnees
+      )
 
       if (!operationModifiee) {
-        return response.status(404).json({
-          message:
-            "Opération, compte ou actif financier introuvable",
-        })
+        throw new ErreurHTTP(
+          404,
+          "Opération, compte ou actif financier introuvable"
+        )
       }
 
       response.json(operationModifiee)
     } catch (error) {
+      if (error instanceof ErreurHTTP) throw error
+
       if (estErreurCleEtrangere(error)) {
-        return response.status(409).json({
-          message:
-            "Le compte ou l’actif financier indiqué n’existe pas",
-        })
+        throw new ErreurHTTP(
+          409,
+          "Le compte ou l'actif financier indiqué n'existe pas"
+        )
       }
-
-      response.status(500).json({
-        message:
-          "Erreur lors de la modification de l’opération d’investissement",
-        error: error.message,
-      })
+      throw error
     }
   }
+)
 
-export const deleteOperationInvestissementById =
+export const deleteOperationInvestissementById = asyncHandler(
   async (request, response) => {
-    try {
-      const validation =
-        validerIdOperationInvestissement(
-          request.params.id
-        )
+    const validation = validerIdOperationInvestissement(request.params.id)
 
-      if (!validation.estValide) {
-        return response.status(400).json({
-          message: validation.message,
-        })
-      }
-
-      // 🟨 CORRIGÉ : suppression limitée au propriétaire.
-      const operationSupprimee =
-        await deleteOperationInvestissement(
-          validation.donnees.id,
-          request.utilisateur.utilisateurId
-        )
-
-      if (!operationSupprimee) {
-        return response.status(404).json({
-          message:
-            "Opération d’investissement introuvable",
-        })
-      }
-
-      response.json({
-        message:
-          "Opération d’investissement supprimée",
-        operation: operationSupprimee,
-      })
-    } catch (error) {
-      response.status(500).json({
-        message:
-          "Erreur lors de la suppression de l’opération d’investissement",
-        error: error.message,
-      })
+    if (!validation.estValide) {
+      throw new ErreurHTTP(400, validation.message)
     }
+
+    // Suppression limitée au propriétaire.
+    const operationSupprimee = await deleteOperationInvestissement(
+      validation.donnees.id,
+      request.utilisateur.utilisateurId
+    )
+
+    if (!operationSupprimee) {
+      throw new ErreurHTTP(404, "Opération d'investissement introuvable")
+    }
+
+    response.json({
+      message: "Opération d'investissement supprimée",
+      operation: operationSupprimee,
+    })
   }
+)

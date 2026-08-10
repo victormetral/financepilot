@@ -1,9 +1,6 @@
 /*
   CONTRÔLEUR DES ACTIFS FINANCIERS
 
-  Ce fichier orchestre les requêtes HTTP liées
-  aux actifs financiers.
-
   Routes concernées :
   - GET    /api/actifs-financiers
   - GET    /api/actifs-financiers/:id
@@ -11,22 +8,24 @@
   - PUT    /api/actifs-financiers/:id
   - DELETE /api/actifs-financiers/:id
 
-  Répartition des responsabilités :
+  Depuis Lot 3 :
+  - plus de try/catch générique ; asyncHandler transmet
+    toute erreur non gérée à erreurGlobale.middleware.js ;
+  - les erreurs métier (400, 404, 409) sont levées
+    explicitement via ErreurHTTP.
 
-  actifFinancier.controller.js
-  → orchestre les requêtes HTTP
-
-  actifFinancier.validator.js
-  → valide, nettoie et transforme les données
-
-  actifFinancier.service.js
-  → exécute les requêtes SQL
+  actifFinancier.controller.js → orchestre les requêtes HTTP
+  actifFinancier.validator.js  → valide, nettoie, transforme
+  actifFinancier.service.js    → exécute les requêtes SQL
 
   Victor :
   si une règle liée au symbole, à la devise
-  ou au type d’actif change,
-  modifie d’abord actifFinancier.validator.js.
+  ou au type d'actif change,
+  modifie d'abord actifFinancier.validator.js.
 */
+
+import { asyncHandler } from "../middlewares/asyncHandler.middleware.js"
+import { ErreurHTTP } from "../utils/erreurHttp.utils.js"
 
 import {
   estErreurCleEtrangere,
@@ -41,261 +40,133 @@ import {
   deleteActifFinancier,
 } from "../services/actifFinancier.service.js"
 
-// 🟨 NOUVEAU : validations déplacées dans un fichier spécialisé.
 import {
   validerIdActifFinancier,
   validerCreationActifFinancier,
   validerModificationActifFinancier,
 } from "../validators/actifFinancier.validator.js"
 
-/*
-  Récupère tous les actifs financiers.
-
-  Exemple :
-  GET /api/actifs-financiers
-*/
-export const getActifsFinanciers = async (
-  request,
-  response
-) => {
-  try {
-    const actifs =
-      await findAllActifsFinanciers()
-
+export const getActifsFinanciers = asyncHandler(
+  async (request, response) => {
+    const actifs = await findAllActifsFinanciers()
     response.json(actifs)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la récupération des actifs financiers",
-      error: error.message,
-    })
   }
-}
+)
 
-/*
-  Récupère un actif financier précis
-  grâce à son identifiant.
-
-  Exemple :
-  GET /api/actifs-financiers/3
-*/
-export const getActifFinancierById = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerIdActifFinancier(
-        request.params.id
-      )
+export const getActifFinancierById = asyncHandler(
+  async (request, response) => {
+    const validation = validerIdActifFinancier(request.params.id)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    const actif =
-      await findActifFinancierById(
-        validation.donnees.id
-      )
+    const actif = await findActifFinancierById(validation.donnees.id)
 
     if (!actif) {
-      return response.status(404).json({
-        message:
-          "Actif financier introuvable",
-      })
+      throw new ErreurHTTP(404, "Actif financier introuvable")
     }
 
     response.json(actif)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la récupération de l’actif financier",
-      error: error.message,
-    })
   }
-}
+)
 
 /*
-  Crée un actif financier.
-
-  Le validateur :
-  - vérifie les champs obligatoires ;
-  - applique EUR par défaut ;
-  - transforme symbole et devise en majuscules ;
-  - retire les espaces inutiles.
+  Crée un actif financier. Try/catch local conservé :
+  seul cas pg possible ici, 23505 (symbole déjà enregistré).
 */
-export const postActifFinancier = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerCreationActifFinancier(
-        request.body
-      )
+export const postActifFinancier = asyncHandler(
+  async (request, response) => {
+    const validation = validerCreationActifFinancier(request.body)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    const nouvelActif =
-      await createActifFinancier(
-        validation.donnees
-      )
-
-    response.status(201).json(nouvelActif)
-  } catch (error) {
-    /*
-      PostgreSQL 23505 :
-      une valeur soumise à une contrainte UNIQUE
-      existe déjà.
-
-      Exemple possible :
-      symbole déjà enregistré.
-    */
-    if (estErreurDoublon(error)) {
-      return response.status(409).json({
-        message:
-          "Cet actif financier existe déjà",
-      })
+    try {
+      const nouvelActif = await createActifFinancier(validation.donnees)
+      response.status(201).json(nouvelActif)
+    } catch (error) {
+      if (estErreurDoublon(error)) {
+        throw new ErreurHTTP(409, "Cet actif financier existe déjà")
+      }
+      throw error
     }
-
-    response.status(500).json({
-      message:
-        "Erreur lors de la création de l’actif financier",
-      error: error.message,
-    })
   }
-}
+)
 
-/*
-  Modifie entièrement un actif financier.
-
-  PUT exige :
-  - symbole ;
-  - nom ;
-  - type_actif ;
-  - devise.
-*/
-export const putActifFinancier = async (
-  request,
-  response
-) => {
-  try {
-    const validationId =
-      validerIdActifFinancier(
-        request.params.id
-      )
+export const putActifFinancier = asyncHandler(
+  async (request, response) => {
+    const validationId = validerIdActifFinancier(request.params.id)
 
     if (!validationId.estValide) {
-      return response.status(400).json({
-        message: validationId.message,
-      })
+      throw new ErreurHTTP(400, validationId.message)
     }
 
-    const validationDonnees =
-      validerModificationActifFinancier(
-        request.body
-      )
+    const validationDonnees = validerModificationActifFinancier(request.body)
 
     if (!validationDonnees.estValide) {
-      return response.status(400).json({
-        message:
-          validationDonnees.message,
-      })
+      throw new ErreurHTTP(400, validationDonnees.message)
     }
 
-    const actifModifie =
-      await updateActifFinancier(
+    try {
+      const actifModifie = await updateActifFinancier(
         validationId.donnees.id,
         validationDonnees.donnees
       )
 
-    if (!actifModifie) {
-      return response.status(404).json({
-        message:
-          "Actif financier introuvable",
-      })
-    }
-
-    response.json(actifModifie)
-  } catch (error) {
-    if (estErreurDoublon(error)) {
-      return response.status(409).json({
-        message:
-          "Cet actif financier existe déjà",
-      })
-    }
-
-    response.status(500).json({
-      message:
-        "Erreur lors de la modification de l’actif financier",
-      error: error.message,
-    })
-  }
-}
-
-/*
-  Supprime un actif financier grâce
-  à son identifiant.
-
-  Le service renvoie la ligne supprimée
-  grâce à RETURNING *.
-*/
-export const deleteActifFinancierById =
-  async (request, response) => {
-    try {
-      const validation =
-        validerIdActifFinancier(
-          request.params.id
-        )
-
-      if (!validation.estValide) {
-        return response.status(400).json({
-          message: validation.message,
-        })
+      if (!actifModifie) {
+        throw new ErreurHTTP(404, "Actif financier introuvable")
       }
 
-      const actifSupprime =
-        await deleteActifFinancier(
-          validation.donnees.id
-        )
+      response.json(actifModifie)
+    } catch (error) {
+      if (error instanceof ErreurHTTP) throw error
+
+      if (estErreurDoublon(error)) {
+        throw new ErreurHTTP(409, "Cet actif financier existe déjà")
+      }
+      throw error
+    }
+  }
+)
+
+/*
+  Supprime un actif financier. Try/catch local conservé :
+  seul cas pg possible ici, 23503 (encore utilisé par une
+  opération d'investissement).
+*/
+export const deleteActifFinancierById = asyncHandler(
+  async (request, response) => {
+    const validation = validerIdActifFinancier(request.params.id)
+
+    if (!validation.estValide) {
+      throw new ErreurHTTP(400, validation.message)
+    }
+
+    try {
+      const actifSupprime = await deleteActifFinancier(
+        validation.donnees.id
+      )
 
       if (!actifSupprime) {
-        return response.status(404).json({
-          message:
-            "Actif financier introuvable",
-        })
+        throw new ErreurHTTP(404, "Actif financier introuvable")
       }
 
       response.json({
-        message:
-          "Actif financier supprimé",
+        message: "Actif financier supprimé",
         actif: actifSupprime,
       })
     } catch (error) {
-      /*
-        PostgreSQL 23503 :
-        l’actif est encore référencé par une autre table.
+      if (error instanceof ErreurHTTP) throw error
 
-        Ici :
-        une opération d’investissement utilise cet actif.
-      */
       if (estErreurCleEtrangere(error)) {
-        return response.status(409).json({
-          message:
-            "Cet actif financier est utilisé par une opération d’investissement",
-        })
+        throw new ErreurHTTP(
+          409,
+          "Cet actif financier est utilisé par une opération d'investissement"
+        )
       }
-
-      response.status(500).json({
-        message:
-          "Erreur lors de la suppression de l’actif financier",
-        error: error.message,
-      })
+      throw error
     }
   }
+)

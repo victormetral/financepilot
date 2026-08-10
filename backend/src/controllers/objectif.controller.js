@@ -1,6 +1,11 @@
 /*
   CONTRÔLEUR DES OBJECTIFS
 
+  Depuis Lot 3 :
+  - plus de try/catch : aucun cas pg spécifique n'était géré
+    ici, donc asyncHandler seul suffit ;
+  - les erreurs métier (400, 404) sont levées via ErreurHTTP.
+
   Utilise :
   - objectif.validator.js ;
   - objectif.service.js ;
@@ -9,6 +14,9 @@
   Règle de sécurité :
   le propriétaire vient toujours du JWT.
 */
+
+import { asyncHandler } from "../middlewares/asyncHandler.middleware.js"
+import { ErreurHTTP } from "../utils/erreurHttp.utils.js"
 
 import {
   findAllObjectifs,
@@ -24,116 +32,72 @@ import {
   validerModificationObjectif,
 } from "../validators/objectif.validator.js"
 
-export const getObjectifs = async (
-  request,
-  response
-) => {
-  try {
-    // 🟨 CORRIGÉ : liste limitée à l'utilisateur JWT.
+export const getObjectifs = asyncHandler(
+  async (request, response) => {
+    // Liste limitée à l'utilisateur JWT.
     const objectifs = await findAllObjectifs(
       request.utilisateur.utilisateurId
     )
 
     response.json(objectifs)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la récupération des objectifs",
-      error: error.message,
-    })
   }
-}
+)
 
-export const getObjectifById = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerIdObjectif(request.params.id)
+export const getObjectifById = asyncHandler(
+  async (request, response) => {
+    const validation = validerIdObjectif(request.params.id)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    // 🟨 CORRIGÉ : identifiant + propriétaire.
+    // Identifiant + propriétaire.
     const objectif = await findObjectifById(
       validation.donnees.id,
       request.utilisateur.utilisateurId
     )
 
     if (!objectif) {
-      return response.status(404).json({
-        message: "Objectif introuvable",
-      })
+      throw new ErreurHTTP(404, "Objectif introuvable")
     }
 
     response.json(objectif)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la récupération de l’objectif",
-      error: error.message,
-    })
   }
-}
+)
 
-export const postObjectif = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerCreationObjectif(request.body)
+export const postObjectif = asyncHandler(
+  async (request, response) => {
+    const validation = validerCreationObjectif(request.body)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    // 🟨 CORRIGÉ : utilisateurId vient du JWT.
+    // utilisateurId vient du JWT.
     const nouvelObjectif = await createObjectif(
       request.utilisateur.utilisateurId,
       validation.donnees
     )
 
     response.status(201).json(nouvelObjectif)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la création de l’objectif",
-      error: error.message,
-    })
   }
-}
+)
 
-export const putObjectif = async (
-  request,
-  response
-) => {
-  try {
-    const validationId =
-      validerIdObjectif(request.params.id)
+export const putObjectif = asyncHandler(
+  async (request, response) => {
+    const validationId = validerIdObjectif(request.params.id)
 
     if (!validationId.estValide) {
-      return response.status(400).json({
-        message: validationId.message,
-      })
+      throw new ErreurHTTP(400, validationId.message)
     }
 
-    const validationDonnees =
-      validerModificationObjectif(request.body)
+    const validationDonnees = validerModificationObjectif(request.body)
 
     if (!validationDonnees.estValide) {
-      return response.status(400).json({
-        message: validationDonnees.message,
-      })
+      throw new ErreurHTTP(400, validationDonnees.message)
     }
 
-    // 🟨 CORRIGÉ : modification limitée au propriétaire.
+    // Modification limitée au propriétaire.
     const objectifModifie = await updateObjectif(
       validationId.donnees.id,
       request.utilisateur.utilisateurId,
@@ -141,56 +105,34 @@ export const putObjectif = async (
     )
 
     if (!objectifModifie) {
-      return response.status(404).json({
-        message: "Objectif introuvable",
-      })
+      throw new ErreurHTTP(404, "Objectif introuvable")
     }
 
     response.json(objectifModifie)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la modification de l’objectif",
-      error: error.message,
-    })
   }
-}
+)
 
-export const deleteObjectifById = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerIdObjectif(request.params.id)
+export const deleteObjectifById = asyncHandler(
+  async (request, response) => {
+    const validation = validerIdObjectif(request.params.id)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    // 🟨 CORRIGÉ : suppression limitée au propriétaire.
+    // Suppression limitée au propriétaire.
     const objectifSupprime = await deleteObjectif(
       validation.donnees.id,
       request.utilisateur.utilisateurId
     )
 
     if (!objectifSupprime) {
-      return response.status(404).json({
-        message: "Objectif introuvable",
-      })
+      throw new ErreurHTTP(404, "Objectif introuvable")
     }
 
     response.json({
       message: "Objectif supprimé",
       objectif: objectifSupprime,
     })
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la suppression de l’objectif",
-      error: error.message,
-    })
   }
-}
+)

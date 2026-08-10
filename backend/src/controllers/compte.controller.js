@@ -1,9 +1,6 @@
 /*
   CONTRÔLEUR DES COMPTES
 
-  Ce fichier orchestre les requêtes HTTP liées
-  aux comptes bancaires.
-
   Routes concernées :
   - GET    /api/comptes
   - GET    /api/comptes/:id
@@ -11,39 +8,24 @@
   - PUT    /api/comptes/:id
   - DELETE /api/comptes/:id
 
-  Répartition des responsabilités :
+  Depuis Lot 3 :
+  - plus de try/catch générique ; asyncHandler transmet
+    toute erreur non gérée à erreurGlobale.middleware.js ;
+  - les erreurs métier (400, 404, 409) sont levées
+    explicitement via ErreurHTTP.
 
-  compte.controller.js
-  → orchestre les requêtes HTTP
-
-  compte.validator.js
-  → valide, transforme et nettoie les données
-
-  compte.service.js
-  → exécute les requêtes SQL
-
-  Convention de nommage :
-  - getComptes
-  - getCompteById
-  - postCompte
-  - putCompte
-  - deleteCompteById
+  compte.controller.js → orchestre les requêtes HTTP
+  compte.validator.js  → valide, transforme, nettoie
+  compte.service.js    → exécute les requêtes SQL
 
   Règle de sécurité :
-  - l’identité de l’utilisateur vient du JWT ;
-  - elle est disponible dans request.utilisateur ;
-  - elle est transmise au service pour chaque requête ;
-  - elle ne doit jamais être choisie dans le body JSON.
-
-  Victor :
-  si une règle concernant les identifiants,
-  le solde, la devise ou le type de compte change,
-  modifie d’abord compte.validator.js.
+  utilisateur_id vient toujours du JWT,
+  jamais du body JSON.
 */
 
-import {
-  estErreurCleEtrangere,
-} from "../utils/postgres.utils.js"
+import { asyncHandler } from "../middlewares/asyncHandler.middleware.js"
+import { ErreurHTTP } from "../utils/erreurHttp.utils.js"
+import { estErreurCleEtrangere } from "../utils/postgres.utils.js"
 
 import {
   findAllComptes,
@@ -59,293 +41,133 @@ import {
   validerModificationCompte,
 } from "../validators/compte.validator.js"
 
-/*
-  Récupère uniquement les comptes
-  de l’utilisateur authentifié.
-
-  Exemple :
-  GET /api/comptes
-*/
-export const getComptes = async (
-  request,
-  response
-) => {
-  try {
-    /*
-      🟨 NOUVEAU
-
-      L’identifiant provient du JWT vérifié
-      par le middleware d’authentification.
-    */
-    const utilisateurId =
-      request.utilisateur.utilisateurId
-
-    // 🟨 CORRIGÉ : transmission au service.
-    const comptes = await findAllComptes(
-      utilisateurId
-    )
-
+export const getComptes = asyncHandler(
+  async (request, response) => {
+    const utilisateurId = request.utilisateur.utilisateurId
+    const comptes = await findAllComptes(utilisateurId)
     response.json(comptes)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la récupération des comptes",
-      error: error.message,
-    })
   }
-}
+)
 
 /*
-  Crée un nouveau compte.
-
-  Le validateur :
-  - valide les textes ;
-  - transforme le solde en nombre ;
-  - applique solde_initial = 0 par défaut ;
-  - applique devise = EUR par défaut ;
-  - normalise la devise en majuscules.
-
-  utilisateur_id vient du JWT vérifié
-  et non du body envoyé par le client.
+  Crée un compte. Try/catch local conservé : seul
+  cas d'erreur pg possible ici (23503, utilisateur JWT
+  disparu) nécessite un message dédié.
 */
-export const postCompte = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerCreationCompte(request.body)
+export const postCompte = asyncHandler(
+  async (request, response) => {
+    const validation = validerCreationCompte(request.body)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    /*
-      L’opérateur ... copie les données validées,
-      puis utilisateur_id est ajouté depuis le JWT.
-    */
     const donneesCompte = {
       ...validation.donnees,
-      utilisateur_id:
-        request.utilisateur.utilisateurId,
+      utilisateur_id: request.utilisateur.utilisateurId,
     }
 
-    const nouveauCompte =
-      await createCompte(donneesCompte)
-
-    response.status(201).json(nouveauCompte)
-  } catch (error) {
-    /*
-      PostgreSQL 23503 :
-      l’utilisateur du JWT n’existe plus
-      dans la base de données.
-    */
-    if (estErreurCleEtrangere(error)) {
-      return response.status(409).json({
-        message:
-          "L’utilisateur authentifié n’existe pas",
-      })
+    try {
+      const nouveauCompte = await createCompte(donneesCompte)
+      response.status(201).json(nouveauCompte)
+    } catch (error) {
+      if (estErreurCleEtrangere(error)) {
+        throw new ErreurHTTP(409, "L'utilisateur authentifié n'existe pas")
+      }
+      throw error
     }
-
-    response.status(500).json({
-      message:
-        "Erreur lors de la création du compte",
-      error: error.message,
-    })
   }
-}
+)
 
-/*
-  Récupère un compte seulement s’il appartient
-  à l’utilisateur authentifié.
-
-  Exemple :
-  GET /api/comptes/3
-*/
-export const getCompteById = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerIdCompte(request.params.id)
+export const getCompteById = asyncHandler(
+  async (request, response) => {
+    const validation = validerIdCompte(request.params.id)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    // 🟨 NOUVEAU
-    const utilisateurId =
-      request.utilisateur.utilisateurId
-
-    /*
-      🟨 CORRIGÉ
-
-      Le service reçoit :
-      - l’identifiant du compte ;
-      - l’identifiant de l’utilisateur connecté.
-    */
-    const compte = await findCompteById(
-      validation.donnees.id,
-      utilisateurId
-    )
+    const utilisateurId = request.utilisateur.utilisateurId
+    const compte = await findCompteById(validation.donnees.id, utilisateurId)
 
     if (!compte) {
-      return response.status(404).json({
-        message: "Compte introuvable",
-      })
+      throw new ErreurHTTP(404, "Compte introuvable")
     }
 
     response.json(compte)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la récupération du compte",
-      error: error.message,
-    })
   }
-}
+)
 
-/*
-  Modifie entièrement un compte
-  seulement s’il appartient à l’utilisateur.
-
-  PUT exige :
-  - nom ;
-  - type_compte ;
-  - solde_initial ;
-  - devise.
-
-  utilisateur_id reste inchangé.
-*/
-export const putCompte = async (
-  request,
-  response
-) => {
-  try {
-    const validationId =
-      validerIdCompte(request.params.id)
+export const putCompte = asyncHandler(
+  async (request, response) => {
+    const validationId = validerIdCompte(request.params.id)
 
     if (!validationId.estValide) {
-      return response.status(400).json({
-        message: validationId.message,
-      })
+      throw new ErreurHTTP(400, validationId.message)
     }
 
-    const validationDonnees =
-      validerModificationCompte(
-        request.body
-      )
+    const validationDonnees = validerModificationCompte(request.body)
 
     if (!validationDonnees.estValide) {
-      return response.status(400).json({
-        message:
-          validationDonnees.message,
-      })
+      throw new ErreurHTTP(400, validationDonnees.message)
     }
 
-    // 🟨 NOUVEAU
-    const utilisateurId =
-      request.utilisateur.utilisateurId
+    const utilisateurId = request.utilisateur.utilisateurId
 
-    /*
-      🟨 CORRIGÉ
-
-      L’ordre des arguments correspond au service :
-      1. identifiant du compte ;
-      2. identifiant de l’utilisateur ;
-      3. nouvelles données du compte.
-    */
-    const compteModifie =
-      await updateCompte(
-        validationId.donnees.id,
-        utilisateurId,
-        validationDonnees.donnees
-      )
+    const compteModifie = await updateCompte(
+      validationId.donnees.id,
+      utilisateurId,
+      validationDonnees.donnees
+    )
 
     if (!compteModifie) {
-      return response.status(404).json({
-        message: "Compte introuvable",
-      })
+      throw new ErreurHTTP(404, "Compte introuvable")
     }
 
     response.json(compteModifie)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la modification du compte",
-      error: error.message,
-    })
   }
-}
+)
 
 /*
-  Supprime un compte seulement s’il appartient
-  à l’utilisateur authentifié.
-
-  Le service renvoie le compte supprimé grâce
-  à la clause SQL RETURNING.
+  Supprime un compte. Try/catch local conservé : seul
+  cas d'erreur pg possible ici (23503, compte encore
+  référencé par transactions/opérations) nécessite un
+  message dédié.
 */
-export const deleteCompteById = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerIdCompte(request.params.id)
+export const deleteCompteById = asyncHandler(
+  async (request, response) => {
+    const validation = validerIdCompte(request.params.id)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    // 🟨 NOUVEAU
-    const utilisateurId =
-      request.utilisateur.utilisateurId
+    const utilisateurId = request.utilisateur.utilisateurId
 
-    // 🟨 CORRIGÉ : transmission du propriétaire.
-    const compteSupprime =
-      await deleteCompte(
+    try {
+      const compteSupprime = await deleteCompte(
         validation.donnees.id,
         utilisateurId
       )
 
-    if (!compteSupprime) {
-      return response.status(404).json({
-        message: "Compte introuvable",
+      if (!compteSupprime) {
+        throw new ErreurHTTP(404, "Compte introuvable")
+      }
+
+      response.json({
+        message: "Compte supprimé avec succès",
+        compte: compteSupprime,
       })
+    } catch (error) {
+      if (error instanceof ErreurHTTP) throw error
+
+      if (estErreurCleEtrangere(error)) {
+        throw new ErreurHTTP(
+          409,
+          "Impossible de supprimer ce compte car il contient encore des transactions ou des opérations d'investissement"
+        )
+      }
+      throw error
     }
-
-    response.json({
-      message:
-        "Compte supprimé avec succès",
-      compte: compteSupprime,
-    })
-  } catch (error) {
-    /*
-      PostgreSQL 23503 :
-      le compte est encore référencé par une autre table.
-
-      Ici, il possède encore :
-      - des transactions ;
-      - ou des opérations d’investissement.
-    */
-    if (estErreurCleEtrangere(error)) {
-      return response.status(409).json({
-        message:
-          "Impossible de supprimer ce compte car il contient encore des transactions ou des opérations d’investissement",
-      })
-    }
-
-    response.status(500).json({
-      message:
-        "Erreur lors de la suppression du compte",
-      error: error.message,
-    })
   }
-}
+)

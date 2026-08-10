@@ -1,14 +1,22 @@
 /*
   CONTRÔLEUR DES BUDGETS
 
-  Utilise :
-  - budget.validator.js pour valider les entrées ;
-  - budget.service.js pour PostgreSQL ;
-  - request.utilisateur pour l'identité du JWT.
+  Depuis Lot 3 :
+  - plus de try/catch générique ; asyncHandler transmet
+    toute erreur non gérée à erreurGlobale.middleware.js ;
+  - les erreurs métier (400, 404, 409) sont levées
+    explicitement via ErreurHTTP.
+
+  budget.controller.js → orchestre les requêtes HTTP
+  budget.validator.js  → valide les entrées
+  budget.service.js    → exécute les requêtes SQL
 
   Règle de sécurité :
   le client ne choisit jamais utilisateur_id.
 */
+
+import { asyncHandler } from "../middlewares/asyncHandler.middleware.js"
+import { ErreurHTTP } from "../utils/erreurHttp.utils.js"
 
 import {
   estErreurCleEtrangere,
@@ -35,32 +43,18 @@ import {
   calculerTotalPages,
 } from "../utils/pagination.utils.js"
 
-export const getBudgets = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerFiltresBudgets(request.query)
+export const getBudgets = asyncHandler(
+  async (request, response) => {
+    const validation = validerFiltresBudgets(request.query)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    const {
-      categorieId,
-      mois,
-      annee,
-      limite,
-      page,
-      offset,
-    } = validation.donnees
+    const { categorieId, mois, annee, limite, page, offset } =
+      validation.donnees
 
-    // 🟨 NOUVEAU : identité sûre issue du JWT.
-    const utilisateurId =
-      request.utilisateur.utilisateurId
+    const utilisateurId = request.utilisateur.utilisateurId
 
     const resultat = await findAllBudgets(
       utilisateurId,
@@ -71,23 +65,13 @@ export const getBudgets = async (
       offset
     )
 
-    if (
-      !pageExiste({
-        total: resultat.total,
-        page,
-        limite,
-      })
-    ) {
-      const totalPages = calculerTotalPages(
-        resultat.total,
-        limite
-      )
+    if (!pageExiste({ total: resultat.total, page, limite })) {
+      const totalPages = calculerTotalPages(resultat.total, limite)
 
-      return response.status(400).json({
-        message:
-          `La page ${page} n’existe pas. ` +
-          `Dernière page disponible : ${totalPages}`,
-      })
+      throw new ErreurHTTP(
+        400,
+        `La page ${page} n'existe pas. Dernière page disponible : ${totalPages}`
+      )
     }
 
     response.json({
@@ -98,195 +82,138 @@ export const getBudgets = async (
         page,
       }),
     })
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la récupération des budgets",
-      error: error.message,
-    })
   }
-}
+)
 
-export const getBudgetById = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerIdBudget(request.params.id)
+export const getBudgetById = asyncHandler(
+  async (request, response) => {
+    const validation = validerIdBudget(request.params.id)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    // 🟨 CORRIGÉ : recherche limitée au propriétaire.
     const budget = await findBudgetById(
       validation.donnees.id,
       request.utilisateur.utilisateurId
     )
 
     if (!budget) {
-      return response.status(404).json({
-        message: "Budget introuvable",
-      })
+      throw new ErreurHTTP(404, "Budget introuvable")
     }
 
     response.json(budget)
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la récupération du budget",
-      error: error.message,
-    })
   }
-}
+)
 
-export const postBudget = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerDonneesBudget(request.body)
+/*
+  Crée un budget. Try/catch local conservé : deux erreurs
+  pg possibles ici, 23503 (catégorie inexistante) et 23505
+  (doublon catégorie + période), chacune avec son message.
+*/
+export const postBudget = asyncHandler(
+  async (request, response) => {
+    const validation = validerDonneesBudget(request.body)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    // 🟨 CORRIGÉ : le propriétaire vient du JWT.
-    const nouveauBudget = await createBudget(
-      request.utilisateur.utilisateurId,
-      validation.donnees
-    )
+    try {
+      const nouveauBudget = await createBudget(
+        request.utilisateur.utilisateurId,
+        validation.donnees
+      )
 
-    if (!nouveauBudget) {
-      return response.status(404).json({
-        message: "Catégorie introuvable",
-      })
+      if (!nouveauBudget) {
+        throw new ErreurHTTP(404, "Catégorie introuvable")
+      }
+
+      response.status(201).json(nouveauBudget)
+    } catch (error) {
+      if (error instanceof ErreurHTTP) throw error
+
+      if (estErreurCleEtrangere(error)) {
+        throw new ErreurHTTP(409, "La catégorie indiquée n'existe pas")
+      }
+
+      if (estErreurDoublon(error)) {
+        throw new ErreurHTTP(
+          409,
+          "Un budget existe déjà pour cette catégorie et cette période"
+        )
+      }
+
+      throw error
     }
-
-    response.status(201).json(nouveauBudget)
-  } catch (error) {
-    if (estErreurCleEtrangere(error)) {
-      return response.status(409).json({
-        message: "La catégorie indiquée n’existe pas",
-      })
-    }
-
-    if (estErreurDoublon(error)) {
-      return response.status(409).json({
-        message:
-          "Un budget existe déjà pour cette catégorie et cette période",
-      })
-    }
-
-    response.status(500).json({
-      message:
-        "Erreur lors de la création du budget",
-      error: error.message,
-    })
   }
-}
+)
 
-export const putBudget = async (
-  request,
-  response
-) => {
-  try {
-    const validationId =
-      validerIdBudget(request.params.id)
+export const putBudget = asyncHandler(
+  async (request, response) => {
+    const validationId = validerIdBudget(request.params.id)
 
     if (!validationId.estValide) {
-      return response.status(400).json({
-        message: validationId.message,
-      })
+      throw new ErreurHTTP(400, validationId.message)
     }
 
-    const validationDonnees =
-      validerDonneesBudget(request.body)
+    const validationDonnees = validerDonneesBudget(request.body)
 
     if (!validationDonnees.estValide) {
-      return response.status(400).json({
-        message: validationDonnees.message,
-      })
+      throw new ErreurHTTP(400, validationDonnees.message)
     }
 
-    // 🟨 CORRIGÉ : propriétaire et catégorie contrôlés.
-    const budgetModifie = await updateBudget(
-      validationId.donnees.id,
-      request.utilisateur.utilisateurId,
-      validationDonnees.donnees
-    )
+    try {
+      const budgetModifie = await updateBudget(
+        validationId.donnees.id,
+        request.utilisateur.utilisateurId,
+        validationDonnees.donnees
+      )
 
-    if (!budgetModifie) {
-      return response.status(404).json({
-        message:
-          "Budget ou catégorie introuvable",
-      })
+      if (!budgetModifie) {
+        throw new ErreurHTTP(404, "Budget ou catégorie introuvable")
+      }
+
+      response.json(budgetModifie)
+    } catch (error) {
+      if (error instanceof ErreurHTTP) throw error
+
+      if (estErreurCleEtrangere(error)) {
+        throw new ErreurHTTP(409, "La catégorie indiquée n'existe pas")
+      }
+
+      if (estErreurDoublon(error)) {
+        throw new ErreurHTTP(
+          409,
+          "Un budget existe déjà pour cette catégorie et cette période"
+        )
+      }
+
+      throw error
     }
-
-    response.json(budgetModifie)
-  } catch (error) {
-    if (estErreurCleEtrangere(error)) {
-      return response.status(409).json({
-        message: "La catégorie indiquée n’existe pas",
-      })
-    }
-
-    if (estErreurDoublon(error)) {
-      return response.status(409).json({
-        message:
-          "Un budget existe déjà pour cette catégorie et cette période",
-      })
-    }
-
-    response.status(500).json({
-      message:
-        "Erreur lors de la modification du budget",
-      error: error.message,
-    })
   }
-}
+)
 
-export const deleteBudgetById = async (
-  request,
-  response
-) => {
-  try {
-    const validation =
-      validerIdBudget(request.params.id)
+export const deleteBudgetById = asyncHandler(
+  async (request, response) => {
+    const validation = validerIdBudget(request.params.id)
 
     if (!validation.estValide) {
-      return response.status(400).json({
-        message: validation.message,
-      })
+      throw new ErreurHTTP(400, validation.message)
     }
 
-    // 🟨 CORRIGÉ : suppression limitée au propriétaire.
     const budgetSupprime = await deleteBudget(
       validation.donnees.id,
       request.utilisateur.utilisateurId
     )
 
     if (!budgetSupprime) {
-      return response.status(404).json({
-        message: "Budget introuvable",
-      })
+      throw new ErreurHTTP(404, "Budget introuvable")
     }
 
     response.json({
       message: "Budget supprimé",
       budget: budgetSupprime,
     })
-  } catch (error) {
-    response.status(500).json({
-      message:
-        "Erreur lors de la suppression du budget",
-      error: error.message,
-    })
   }
-}
+)
