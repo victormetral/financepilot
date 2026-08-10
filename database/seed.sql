@@ -4,9 +4,9 @@ INSERT INTO utilisateur (
   email,
   mot_de_passe
 ) VALUES
-  ('Martin', 'Alice', 'alice.martin@demo.fr', 'hash_demo_alice'),
-  ('Durand', 'Thomas', 'thomas.durand@demo.fr', 'hash_demo_thomas'),
-  ('Bernard', 'Sofia', 'sofia.bernard@demo.fr', 'hash_demo_sofia');
+  ('Martin', 'Alice', 'alice.martin@demo.fr', '$2b$10$YskDkZpceyZUivluWAKViuDJls/jzzCR7TyGzBfbuib28xONfcd4e'),
+  ('Durand', 'Thomas', 'thomas.durand@demo.fr', '$2b$10$RMfer8d6R.6olEhUP6X/6O.MUssLdBsRv.tpcw3.VOsiIBJyFulNC'),
+  ('Bernard', 'Sofia', 'sofia.bernard@demo.fr', '$2b$10$n7s.a50XdRg8L5RwOdbq6eTXmCzsApSnznrg7Zkvfz9RvECVp6aUm');
 
   INSERT INTO compte (
   utilisateur_id,

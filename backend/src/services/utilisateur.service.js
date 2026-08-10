@@ -1,22 +1,20 @@
 /*
   SERVICE DES UTILISATEURS
 
-  Ce fichier contient les requêtes SQL liées
-  aux utilisateurs de FinancePilot.
+  Rôle général :
+  exécute les requêtes SQL liées aux utilisateurs
+  de FinancePilot.
 
   Utilisé par :
   - utilisateur.controller.js
-
-  Son rôle :
-  - lire l’utilisateur authentifié ;
-  - rechercher un utilisateur par email ;
-  - créer, modifier et supprimer un utilisateur.
+  - auth.controller.js (findUtilisateurByEmail,
+    pour la connexion)
 
   Règles de sécurité :
   - un utilisateur ne peut consulter que son profil ;
   - il ne peut modifier que son profil ;
   - il ne peut supprimer que son profil ;
-  - l’identité fiable provient du JWT ;
+  - l'identité fiable provient du JWT ;
   - mot_de_passe ne doit jamais être renvoyé
     dans une réponse publique.
 
@@ -24,22 +22,17 @@
   findUtilisateurByEmail() renvoie le hash uniquement
   pour permettre la connexion et vérifier les doublons.
 
-  Victor :
-  évite SELECT * afin de contrôler précisément
-  les colonnes récupérées par chaque requête.
+  🟨 NOUVEAU :
+  findUtilisateurByEmail() renvoie désormais aussi
+  role, nécessaire pour inclure le rôle dans le JWT
+  à la connexion (voir auth.controller.js).
 */
 
 import { pool } from "../config/database.js"
 
-/*
-  Récupère uniquement l’utilisateur authentifié.
-
-  La route GET /api/utilisateurs conserve
-  une réponse sous forme de tableau.
-
-  🟨 CORRIGÉ :
-  elle ne renvoie plus tous les utilisateurs.
-*/
+// Récupère uniquement l'utilisateur authentifié
+// (la route GET /api/utilisateurs renvoie un tableau
+// à un seul élément pour ne pas changer sa forme).
 export const findAllUtilisateurs = async (
   utilisateurId
 ) => {
@@ -58,18 +51,10 @@ export const findAllUtilisateurs = async (
   )
 
   return result.rows
-}
+} 
 
-/*
-  Recherche un utilisateur seulement lorsque :
-
-  - l’identifiant demandé dans l’URL correspond ;
-  - cet identifiant correspond aussi au JWT.
-
-  🟨 CORRIGÉ :
-  un utilisateur ne peut plus consulter
-  le profil d’un autre utilisateur.
-*/
+// Recherche un utilisateur seulement lorsque
+// l'identifiant demandé correspond au JWT.
 export const findUtilisateurById = async (
   id,
   utilisateurId
@@ -86,28 +71,15 @@ export const findUtilisateurById = async (
       WHERE id = $1
         AND id = $2
     `,
-    [
-      id,
-      // 🟨 NOUVEAU
-      utilisateurId,
-    ]
+    [id, utilisateurId]
   )
 
   return result.rows[0]
 }
 
-/*
-  Recherche un utilisateur grâce à son email.
-
-  Cette fonction renvoie volontairement mot_de_passe,
-  car le hash est nécessaire :
-
-  - pour vérifier la connexion ;
-  - pour vérifier les doublons d’email.
-
-  Cette fonction ne doit jamais être utilisée
-  directement pour construire une réponse publique.
-*/
+// Recherche un utilisateur grâce à son email.
+// Renvoie mot_de_passe (hash) et role : nécessaires
+// pour la connexion, jamais pour une réponse publique.
 export const findUtilisateurByEmail = async (
   email
 ) => {
@@ -119,6 +91,7 @@ export const findUtilisateurByEmail = async (
         prenom,
         email,
         mot_de_passe,
+        role,
         date_creation
       FROM utilisateur
       WHERE email = $1
@@ -129,14 +102,7 @@ export const findUtilisateurByEmail = async (
   return result.rows[0]
 }
 
-/*
-  Crée un utilisateur.
-
-  mot_de_passe contient déjà un hash produit
-  par bcrypt dans le contrôleur.
-
-  RETURNING exclut volontairement le hash.
-*/
+// Crée un utilisateur. RETURNING exclut le hash.
 export const createUtilisateur = async ({
   nom,
   prenom,
@@ -159,37 +125,18 @@ export const createUtilisateur = async ({
         email,
         date_creation
     `,
-    [
-      nom,
-      prenom,
-      email,
-      mot_de_passe,
-    ]
+    [nom, prenom, email, mot_de_passe]
   )
 
   return result.rows[0]
 }
 
-/*
-  Modifie un utilisateur uniquement lorsque :
-
-  - l’identifiant demandé correspond ;
-  - l’identifiant appartient au JWT connecté.
-
-  Le nouveau mot de passe doit déjà être haché
-  avant l’appel de cette fonction.
-
-  RETURNING exclut volontairement le hash.
-*/
+// Modifie un utilisateur uniquement si l'identifiant
+// demandé correspond au JWT connecté.
 export const updateUtilisateur = async (
   id,
   utilisateurId,
-  {
-    nom,
-    prenom,
-    email,
-    mot_de_passe,
-  }
+  { nom, prenom, email, mot_de_passe }
 ) => {
   const result = await pool.query(
     `
@@ -208,29 +155,13 @@ export const updateUtilisateur = async (
         email,
         date_creation
     `,
-    [
-      nom,
-      prenom,
-      email,
-      mot_de_passe,
-      id,
-      // 🟨 NOUVEAU
-      utilisateurId,
-    ]
+    [nom, prenom, email, mot_de_passe, id, utilisateurId]
   )
 
   return result.rows[0]
 }
 
-/*
-  Supprime uniquement l’utilisateur authentifié.
-
-  Les deux identifiants doivent correspondre :
-  - celui reçu dans l’URL ;
-  - celui contenu dans le JWT.
-
-  Le hash du mot de passe est exclu du résultat.
-*/
+// Supprime uniquement l'utilisateur authentifié.
 export const deleteUtilisateur = async (
   id,
   utilisateurId
@@ -247,11 +178,7 @@ export const deleteUtilisateur = async (
         email,
         date_creation
     `,
-    [
-      id,
-      // 🟨 NOUVEAU
-      utilisateurId,
-    ]
+    [id, utilisateurId]
   )
 
   return result.rows[0]

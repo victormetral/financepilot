@@ -2,10 +2,17 @@
 
 # Tests d'erreur de FinancePilot : validation, ressources absentes,
 # doublons et suppressions bloquées par les clés étrangères.
+#
+# 🟨 NOUVEAU :
+# actif_financier est réservé aux administrateurs en écriture.
+# L'utilisateur de test est promu administrateur via psql avant
+# la création de l'actif de test, puis reconnecté pour obtenir
+# un JWT à jour.
 set -euo pipefail
 
 BACKEND_URL="http://localhost:3000"
 API_URL="$BACKEND_URL/api"
+DATABASE_URL="postgresql://financepilot:financepilot@localhost:5434/financepilot"
 TIMESTAMP=$(date +%s)
 RESPONSE_FILE="/tmp/financepilot-errors-$$.json"
 
@@ -152,6 +159,25 @@ create_test_data CATEGORY_ID "la catégorie" "$API_URL/categories" "{
   \"type_categorie\": \"depense\"
 }"
 
+# 🟨 NOUVEAU
+# actif_financier est réservé aux administrateurs en écriture :
+# on promeut l'utilisateur de test puis on se reconnecte pour
+# obtenir un JWT contenant le nouveau role.
+psql "$DATABASE_URL" -q -c \
+  "UPDATE utilisateur SET role = 'administrateur' WHERE id = $USER_ID;"
+
+if [[ "$(request POST "$API_URL/auth/connexion" "{
+  \"email\": \"$EMAIL\",
+  \"mot_de_passe\": \"TestFinance123!\"
+}")" != "200" ]]; then
+  echo "❌ Reconnexion en tant qu'administrateur impossible"
+  cat "$RESPONSE_FILE"
+  exit 1
+fi
+
+TOKEN=$(jq -r '.token // empty' "$RESPONSE_FILE")
+echo "✅ Utilisateur de test promu administrateur"
+
 create_test_data ASSET_ID "l'actif financier" "$API_URL/actifs-financiers" "{
   \"symbole\": \"$ASSET_SYMBOL\",
   \"nom\": \"Actif erreurs\",
@@ -203,7 +229,6 @@ expect_status "Mot de passe trop court refusé" 400 POST "$API_URL/utilisateurs"
 expect_status "Solde initial non numérique refusé" 400 POST "$API_URL/comptes" '{
   "nom": "Compte invalide", "type_compte": "courant", "sous_type_compte": "compte_courant", "solde_initial": "cent euros", "devise": "EUR"
 }'
-# 🟨 NOUVEAU : chaque champ sauf celui testé reste valide.
 expect_status "Sous-type de compte absent refusé" 400 POST "$API_URL/comptes" '{
   "nom": "Compte invalide", "type_compte": "courant", "solde_initial": 1000, "devise": "EUR"
 }'

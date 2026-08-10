@@ -11,11 +11,18 @@
 #
 # The script is intentionally linear: each resource uses the identifiers
 # created by the previous resources. New CRUD blocks can follow the same model.
+#
+# 🟨 NOUVEAU :
+# actif_financier est désormais un référentiel réservé aux
+# administrateurs en écriture (POST/PUT/DELETE). L'utilisateur
+# de test créé ici est donc promu administrateur juste avant
+# la section 7, puis reconnecté pour obtenir un JWT à jour.
 # ============================================================
 
 set -Eeuo pipefail
 
 API_URL="http://localhost:3000/api"
+DATABASE_URL="postgresql://financepilot:financepilot@localhost:5434/financepilot"
 RESPONSE_FILE="/tmp/reponse-financepilot.json"
 TOKEN=""
 TIMESTAMP=$(date +%s)
@@ -335,8 +342,24 @@ verifier_code_http "$CODE_HTTP" "200" "Modification objectif"
 # ============================================================
 # 7. FINANCIAL ASSET CRUD
 # ============================================================
+# 🟨 NOUVEAU
+# actif_financier est réservé aux administrateurs en écriture.
+# On promeut l'utilisateur de test via psql, puis on se
+# reconnecte pour obtenir un JWT contenant le nouveau role.
 
 afficher_etape "7. CRUD ACTIF FINANCIER"
+
+psql "$DATABASE_URL" -q -c \
+  "UPDATE utilisateur SET role = 'administrateur' WHERE id = $UTILISATEUR_ID;"
+
+CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
+  \"email\": \"$EMAIL_TEST\",
+  \"mot_de_passe\": \"$MOT_DE_PASSE_MODIFIE\"
+}")
+verifier_code_http "$CODE_HTTP" "200" "Reconnexion en tant qu’administrateur"
+
+TOKEN=$(jq -r '.token // empty' "$RESPONSE_FILE")
+echo "✅ JWT administrateur récupéré"
 
 SYMBOLE_TEST="TST${TIMESTAMP}"
 

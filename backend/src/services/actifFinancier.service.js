@@ -1,9 +1,38 @@
+/*
+  SERVICE DES ACTIFS FINANCIERS
+
+  Rôle général :
+  exécute les requêtes SQL liées au référentiel
+  des actifs financiers (actions, ETF, crypto...).
+
+  Utilisé par :
+  - actifFinancier.controller.js
+
+  Particularité :
+  actif_financier est un référentiel global partagé
+  entre tous les utilisateurs. Il n'a pas de colonne
+  utilisateur_id : aucune requête ne filtre donc par
+  propriétaire ici (contrairement à compte.service.js
+  ou budget.service.js).
+
+  Victor :
+  les colonnes sont listées explicitement (pas de
+  SELECT *) pour garder le contrôle sur ce qui est
+  renvoyé, même si aucune donnée sensible n'est
+  stockée dans cette table.
+*/
+
 import { pool } from "../config/database.js"
 
-// Récupérer tous les actifs financiers
+// Récupère tous les actifs financiers du référentiel.
 export const findAllActifsFinanciers = async () => {
   const result = await pool.query(`
-    SELECT *
+    SELECT
+      id,
+      symbole,
+      nom,
+      type_actif,
+      devise
     FROM actif_financier
     ORDER BY nom ASC, id ASC
   `)
@@ -11,11 +40,16 @@ export const findAllActifsFinanciers = async () => {
   return result.rows
 }
 
-// Récupérer un actif financier par son identifiant
+// Récupère un actif financier précis grâce à son identifiant.
 export const findActifFinancierById = async (id) => {
   const result = await pool.query(
     `
-      SELECT *
+      SELECT
+        id,
+        symbole,
+        nom,
+        type_actif,
+        devise
       FROM actif_financier
       WHERE id = $1
     `,
@@ -25,7 +59,8 @@ export const findActifFinancierById = async (id) => {
   return result.rows[0]
 }
 
-// Créer un actif financier
+// Crée un actif financier. devise vaut EUR par défaut
+// si aucune devise n'est fournie.
 export const createActifFinancier = async ({
   symbole,
   nom,
@@ -54,7 +89,7 @@ export const createActifFinancier = async ({
   return result.rows[0]
 }
 
-// Modifier un actif financier
+// Modifie entièrement un actif financier existant.
 export const updateActifFinancier = async (
   id,
   {
@@ -87,7 +122,11 @@ export const updateActifFinancier = async (
   return result.rows[0]
 }
 
-// Supprimer un actif financier
+// Supprime un actif financier.
+// Échoue avec une erreur PostgreSQL 23503 (clé étrangère)
+// si l'actif est encore référencé par une opération
+// d'investissement : c'est le contrôleur qui traduit
+// cette erreur en réponse HTTP 409.
 export const deleteActifFinancier = async (id) => {
   const result = await pool.query(
     `
