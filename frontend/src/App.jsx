@@ -3,20 +3,22 @@
 // ============================================================
 //
 // Rôle : coordonner l'authentification, les comptes,
-// les catégories et les messages de l'application.
+// les catégories, les budgets et les messages.
 //
 // App.jsx appelle les services API puis transmet les données
-// et les fonctions nécessaires aux composants spécialisés.
+// et les fonctions aux composants spécialisés.
 
 import { useEffect, useState } from "react"
 
 import AuthForm from "./components/AuthForm.jsx"
 import CompteForm from "./components/CompteForm.jsx"
 import CompteList from "./components/CompteList.jsx"
-
-// 🟨 NOUVEAU
 import CategorieForm from "./components/CategorieForm.jsx"
 import CategorieList from "./components/CategorieList.jsx"
+
+// 🟨 NOUVEAU : composants Budget
+import BudgetForm from "./components/BudgetForm.jsx"
+import BudgetList from "./components/BudgetList.jsx"
 
 import {
   connecterUtilisateur,
@@ -31,7 +33,6 @@ import {
   supprimerCompte,
 } from "./services/compte.service.js"
 
-// 🟨 NOUVEAU
 import {
   creerCategorie,
   modifierCategorie,
@@ -39,21 +40,32 @@ import {
   supprimerCategorie,
 } from "./services/categorie.service.js"
 
+// 🟨 NOUVEAU : service API Budget
+import {
+  creerBudget,
+  modifierBudget,
+  recupererBudgets,
+  supprimerBudget,
+} from "./services/budget.service.js"
+
 function App() {
   // ==========================================================
   // ÉTAT GÉNÉRAL DE L'APPLICATION
   // ==========================================================
 
   const [utilisateur, setUtilisateur] = useState(null)
-  const [comptes, setComptes] = useState([])
   const [message, setMessage] = useState("")
+
+  const [comptes, setComptes] = useState([])
   const [compteEnModification, setCompteEnModification] =
     useState(null)
 
-  // 🟨 NOUVEAU
   const [categories, setCategories] = useState([])
   const [categorieEnModification, setCategorieEnModification] =
     useState(null)
+
+  // 🟨 NOUVEAU : liste des budgets reçus de l'API
+  const [budgets, setBudgets] = useState([])
 
   // ==========================================================
   // RESTAURATION DE LA CONNEXION
@@ -74,7 +86,6 @@ function App() {
         if (resultat.ok) {
           setUtilisateur(resultat.donnees[0])
         } else {
-          // Le token n'est plus valide.
           localStorage.removeItem("token")
         }
       } catch {
@@ -119,7 +130,6 @@ function App() {
   // CHARGEMENT DES CATÉGORIES APRÈS CONNEXION
   // ==========================================================
 
-  // 🟨 NOUVEAU
   useEffect(() => {
     async function chargerCategories() {
       const token = localStorage.getItem("token")
@@ -147,6 +157,38 @@ function App() {
   }, [utilisateur])
 
   // ==========================================================
+  // CHARGEMENT DES BUDGETS APRÈS CONNEXION
+  // ==========================================================
+
+  // 🟨 NOUVEAU
+  useEffect(() => {
+    async function chargerBudgets() {
+      const token = localStorage.getItem("token")
+
+      if (!utilisateur || !token) {
+        return
+      }
+
+      try {
+        const resultat = await recupererBudgets(token)
+
+        if (resultat.ok) {
+          // GET /budgets renvoie { budgets, pagination }.
+          setBudgets(resultat.donnees.budgets)
+        } else {
+          setBudgets([])
+          setMessage(resultat.donnees.message)
+        }
+      } catch {
+        setBudgets([])
+        setMessage("Impossible de récupérer les budgets.")
+      }
+    }
+
+    chargerBudgets()
+  }, [utilisateur])
+
+  // ==========================================================
   // ACTIONS D'AUTHENTIFICATION
   // ==========================================================
 
@@ -169,8 +211,8 @@ function App() {
       localStorage.removeItem("token")
       setUtilisateur(null)
       setComptes([])
-      // 🟨 NOUVEAU
       setCategories([])
+      setBudgets([])
 
       return false
     } catch {
@@ -206,13 +248,15 @@ function App() {
 
   function gererDeconnexion() {
     localStorage.removeItem("token")
+
     setUtilisateur(null)
     setComptes([])
     setCompteEnModification(null)
-
-    // 🟨 NOUVEAU
     setCategories([])
     setCategorieEnModification(null)
+
+    // 🟨 NOUVEAU
+    setBudgets([])
 
     setMessage("Déconnexion réussie")
   }
@@ -281,6 +325,7 @@ function App() {
               : compte
           )
         )
+
         setCompteEnModification(null)
         setMessage("Compte bancaire modifié avec succès.")
       } else {
@@ -308,6 +353,7 @@ function App() {
             (compte) => compte.id !== compteId
           )
         )
+
         setMessage(resultat.donnees.message)
       } else {
         setMessage(resultat.donnees.message)
@@ -321,7 +367,6 @@ function App() {
   // ACTIONS CRUD DES CATÉGORIES
   // ==========================================================
 
-  // 🟨 NOUVEAU
   async function gererCreationCategorie(donneesFormulaire) {
     const token = localStorage.getItem("token")
 
@@ -341,6 +386,7 @@ function App() {
           ...categoriesActuelles,
           resultat.donnees,
         ])
+
         setMessage("Catégorie créée.")
 
         return true
@@ -356,7 +402,6 @@ function App() {
     }
   }
 
-  // 🟨 NOUVEAU
   async function gererModificationCategorie(
     categorieId,
     donneesFormulaire
@@ -383,6 +428,7 @@ function App() {
               : categorie
           )
         )
+
         setCategorieEnModification(null)
         setMessage("Catégorie modifiée avec succès.")
       } else {
@@ -393,7 +439,6 @@ function App() {
     }
   }
 
-  // 🟨 NOUVEAU
   async function gererSuppressionCategorie(categorieId) {
     const token = localStorage.getItem("token")
 
@@ -414,12 +459,126 @@ function App() {
             (categorie) => categorie.id !== categorieId
           )
         )
+
         setMessage(resultat.donnees.message)
       } else {
         setMessage(resultat.donnees.message)
       }
     } catch {
       setMessage("Impossible de supprimer la catégorie.")
+    }
+  }
+
+  // ==========================================================
+  // ACTIONS CRUD DES BUDGETS
+  // ==========================================================
+
+  // 🟨 NOUVEAU
+  async function gererCreationBudget(donneesFormulaire) {
+    const token = localStorage.getItem("token")
+
+    if (!token) {
+      setMessage("Vous devez être connecté.")
+      return false
+    }
+
+    try {
+      const resultat = await creerBudget(
+        donneesFormulaire,
+        token
+      )
+
+      if (!resultat.ok) {
+        setMessage(resultat.donnees.message)
+        return false
+      }
+
+      // Recharge la liste afin de récupérer nom_categorie.
+      const resultatListe = await recupererBudgets(token)
+
+      if (resultatListe.ok) {
+        setBudgets(resultatListe.donnees.budgets)
+      }
+
+      setMessage("Budget créé.")
+
+      return true
+    } catch {
+      setMessage("Impossible de créer le budget.")
+
+      return false
+    }
+  }
+
+  // 🟨 NOUVEAU
+  async function gererModificationBudget(
+    budgetId,
+    donneesFormulaire
+  ) {
+    const token = localStorage.getItem("token")
+
+    if (!token) {
+      setMessage("Vous devez être connecté.")
+      return false
+    }
+
+    try {
+      const resultat = await modifierBudget(
+        budgetId,
+        donneesFormulaire,
+        token
+      )
+
+      if (!resultat.ok) {
+        setMessage(resultat.donnees.message)
+        return false
+      }
+
+      // Recharge la liste afin de conserver nom_categorie.
+      const resultatListe = await recupererBudgets(token)
+
+      if (resultatListe.ok) {
+        setBudgets(resultatListe.donnees.budgets)
+      }
+
+      setMessage("Budget modifié avec succès.")
+
+      return true
+    } catch {
+      setMessage("Impossible de modifier le budget.")
+
+      return false
+    }
+  }
+
+  // 🟨 NOUVEAU
+  async function gererSuppressionBudget(budgetId) {
+    const token = localStorage.getItem("token")
+
+    if (!token) {
+      setMessage("Vous devez être connecté.")
+      return
+    }
+
+    try {
+      const resultat = await supprimerBudget(
+        budgetId,
+        token
+      )
+
+      if (resultat.ok) {
+        setBudgets((budgetsActuels) =>
+          budgetsActuels.filter(
+            (budget) => budget.id !== budgetId
+          )
+        )
+
+        setMessage(resultat.donnees.message)
+      } else {
+        setMessage(resultat.donnees.message)
+      }
+    } catch {
+      setMessage("Impossible de supprimer le budget.")
     }
   }
 
@@ -464,13 +623,11 @@ function App() {
               onSuppression={gererSuppressionCompte}
             />
 
-            {/* 🟨 NOUVEAU */}
             <h2>Créer une catégorie</h2>
             <CategorieForm
               onCreation={gererCreationCategorie}
             />
 
-            {/* 🟨 NOUVEAU */}
             <h2>Mes catégories</h2>
             <CategorieList
               categories={categories}
@@ -485,6 +642,21 @@ function App() {
                 setCategorieEnModification(null)
               }
               onSuppression={gererSuppressionCategorie}
+            />
+
+            {/* 🟨 NOUVEAU : section Budget */}
+            <h2>Créer un budget</h2>
+            <BudgetForm
+              categories={categories}
+              onCreation={gererCreationBudget}
+            />
+
+            {/* 🟨 NOUVEAU : liste et modification */}
+            <BudgetList
+              budgets={budgets}
+              categories={categories}
+              onModification={gererModificationBudget}
+              onSuppression={gererSuppressionBudget}
             />
 
             <button type="button" onClick={gererDeconnexion}>
