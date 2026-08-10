@@ -1,21 +1,13 @@
 /*
   CONTRÔLEUR DES UTILISATEURS
 
-  utilisateur.controller.js → orchestre les requêtes HTTP,
-    récupère l'identité depuis le JWT, vérifie les doublons
-    d'email, hache les mots de passe
-  utilisateur.validator.js → valide et nettoie les données
-  utilisateur.service.js → exécute les requêtes SQL, limite
-    les opérations à l'utilisateur connecté
-  bcryptjs → hache le mot de passe
+  utilisateur.controller.js → orchestre les requêtes HTTP, vérifie
+    les doublons d'email, hache les mots de passe
+  utilisateur.validator.js → valide et nettoie
+  utilisateur.service.js → exécute les requêtes SQL
 
-  Règles de sécurité :
-  - le mot de passe ne doit jamais apparaître dans une réponse ;
-  - l'identité fiable vient du JWT ;
-  - un utilisateur ne peut agir que sur son profil.
-
-  Depuis Lot 3 : asyncHandler remplace le try/catch générique ;
-  ErreurHTTP centralise les erreurs 400/404/409.
+  Règles : mot de passe jamais renvoyé ; identité fiable = JWT ;
+  un utilisateur n'agit que sur son propre profil.
 */
 
 import bcrypt from "bcryptjs"
@@ -44,180 +36,130 @@ import {
 
 const NOMBRE_TOURS_HASH = 10
 
-const hacherMotDePasse = async (motDePasse) => {
-  return bcrypt.hash(motDePasse, NOMBRE_TOURS_HASH)
-}
+const hacherMotDePasse = async (motDePasse) => bcrypt.hash(motDePasse, NOMBRE_TOURS_HASH)
 
-export const getUtilisateurs = asyncHandler(
-  async (request, response) => {
-    const utilisateurId = request.utilisateur.utilisateurId
-    const utilisateurs = await findAllUtilisateurs(utilisateurId)
-    response.json(utilisateurs)
+export const getUtilisateurs = asyncHandler(async (request, response) => {
+  const utilisateurId = request.utilisateur.utilisateurId
+  const utilisateurs = await findAllUtilisateurs(utilisateurId)
+  response.json(utilisateurs)
+})
+
+export const getUtilisateurById = asyncHandler(async (request, response) => {
+  const validation = validerIdUtilisateur(request.params.id)
+
+  if (!validation.estValide) {
+    throw new ErreurHTTP(400, validation.message)
   }
-)
 
-export const getUtilisateurById = asyncHandler(
-  async (request, response) => {
-    const validation = validerIdUtilisateur(request.params.id)
+  const utilisateurIdConnecte = request.utilisateur.utilisateurId
+  const utilisateur = await findUtilisateurById(validation.donnees.id, utilisateurIdConnecte)
 
-    if (!validation.estValide) {
-      throw new ErreurHTTP(400, validation.message)
+  if (!utilisateur) {
+    throw new ErreurHTTP(404, "Utilisateur introuvable")
+  }
+
+  response.json(utilisateur)
+})
+
+// Route publique. Try/catch conservé : filet contre une course entre vérification et insertion (23505).
+export const postUtilisateur = asyncHandler(async (request, response) => {
+  const validation = validerDonneesUtilisateur(request.body)
+
+  if (!validation.estValide) {
+    throw new ErreurHTTP(400, validation.message)
+  }
+
+  const { nom, prenom, email, mot_de_passe } = validation.donnees
+  const utilisateurExistant = await findUtilisateurByEmail(email)
+
+  if (utilisateurExistant) {
+    throw new ErreurHTTP(409, "Un utilisateur utilise déjà cet email")
+  }
+
+  const motDePasseHash = await hacherMotDePasse(mot_de_passe)
+
+  try {
+    const nouvelUtilisateur = await createUtilisateur({ nom, prenom, email, mot_de_passe: motDePasseHash })
+    response.status(201).json(nouvelUtilisateur)
+  } catch (error) {
+    if (estErreurDoublon(error)) {
+      throw new ErreurHTTP(409, "Un utilisateur utilise déjà cet email")
     }
+    throw error
+  }
+})
 
-    const utilisateurIdConnecte = request.utilisateur.utilisateurId
+export const putUtilisateur = asyncHandler(async (request, response) => {
+  const validationId = validerIdUtilisateur(request.params.id)
 
-    const utilisateur = await findUtilisateurById(
-      validation.donnees.id,
-      utilisateurIdConnecte
-    )
+  if (!validationId.estValide) {
+    throw new ErreurHTTP(400, validationId.message)
+  }
 
-    if (!utilisateur) {
+  const utilisateurIdDemande = validationId.donnees.id
+  const utilisateurIdConnecte = request.utilisateur.utilisateurId
+  const utilisateurActuel = await findUtilisateurById(utilisateurIdDemande, utilisateurIdConnecte)
+
+  if (!utilisateurActuel) {
+    throw new ErreurHTTP(404, "Utilisateur introuvable")
+  }
+
+  const validationDonnees = validerDonneesUtilisateur(request.body)
+
+  if (!validationDonnees.estValide) {
+    throw new ErreurHTTP(400, validationDonnees.message)
+  }
+
+  const { nom, prenom, email, mot_de_passe } = validationDonnees.donnees
+  const utilisateurAvecEmail = await findUtilisateurByEmail(email)
+
+  if (utilisateurAvecEmail && utilisateurAvecEmail.id !== utilisateurIdConnecte) {
+    throw new ErreurHTTP(409, "Un utilisateur utilise déjà cet email")
+  }
+
+  const motDePasseHash = await hacherMotDePasse(mot_de_passe)
+
+  try {
+    const utilisateurModifie = await updateUtilisateur(utilisateurIdDemande, utilisateurIdConnecte, {
+      nom, prenom, email, mot_de_passe: motDePasseHash,
+    })
+
+    if (!utilisateurModifie) {
       throw new ErreurHTTP(404, "Utilisateur introuvable")
     }
 
-    response.json(utilisateur)
-  }
-)
-
-/*
-  Route publique. Try/catch conservé : la vérification de
-  doublon est faite en amont, mais une course entre cette
-  vérification et l'insertion reste possible (23505).
-*/
-export const postUtilisateur = asyncHandler(
-  async (request, response) => {
-    const validation = validerDonneesUtilisateur(request.body)
-
-    if (!validation.estValide) {
-      throw new ErreurHTTP(400, validation.message)
-    }
-
-    const { nom, prenom, email, mot_de_passe } = validation.donnees
-
-    const utilisateurExistant = await findUtilisateurByEmail(email)
-
-    if (utilisateurExistant) {
+    response.json(utilisateurModifie)
+  } catch (error) {
+    if (error instanceof ErreurHTTP) throw error
+    if (estErreurDoublon(error)) {
       throw new ErreurHTTP(409, "Un utilisateur utilise déjà cet email")
     }
-
-    const motDePasseHash = await hacherMotDePasse(mot_de_passe)
-
-    try {
-      const nouvelUtilisateur = await createUtilisateur({
-        nom,
-        prenom,
-        email,
-        mot_de_passe: motDePasseHash,
-      })
-
-      response.status(201).json(nouvelUtilisateur)
-    } catch (error) {
-      if (estErreurDoublon(error)) {
-        throw new ErreurHTTP(409, "Un utilisateur utilise déjà cet email")
-      }
-      throw error
-    }
+    throw error
   }
-)
+})
 
-export const putUtilisateur = asyncHandler(
-  async (request, response) => {
-    const validationId = validerIdUtilisateur(request.params.id)
+export const deleteUtilisateurById = asyncHandler(async (request, response) => {
+  const validation = validerIdUtilisateur(request.params.id)
 
-    if (!validationId.estValide) {
-      throw new ErreurHTTP(400, validationId.message)
-    }
+  if (!validation.estValide) {
+    throw new ErreurHTTP(400, validation.message)
+  }
 
-    const utilisateurIdDemande = validationId.donnees.id
-    const utilisateurIdConnecte = request.utilisateur.utilisateurId
+  const utilisateurIdConnecte = request.utilisateur.utilisateurId
 
-    const utilisateurActuel = await findUtilisateurById(
-      utilisateurIdDemande,
-      utilisateurIdConnecte
-    )
+  try {
+    const utilisateurSupprime = await deleteUtilisateur(validation.donnees.id, utilisateurIdConnecte)
 
-    if (!utilisateurActuel) {
+    if (!utilisateurSupprime) {
       throw new ErreurHTTP(404, "Utilisateur introuvable")
     }
 
-    const validationDonnees = validerDonneesUtilisateur(request.body)
-
-    if (!validationDonnees.estValide) {
-      throw new ErreurHTTP(400, validationDonnees.message)
+    response.json({ message: "Utilisateur supprimé", utilisateur: utilisateurSupprime })
+  } catch (error) {
+    if (error instanceof ErreurHTTP) throw error
+    if (estErreurCleEtrangere(error)) {
+      throw new ErreurHTTP(409, "Cet utilisateur possède encore des comptes, catégories, budgets ou objectifs")
     }
-
-    const { nom, prenom, email, mot_de_passe } = validationDonnees.donnees
-
-    const utilisateurAvecEmail = await findUtilisateurByEmail(email)
-
-    // L'utilisateur connecté peut garder son email actuel ; un email d'un autre → 409.
-    if (
-      utilisateurAvecEmail &&
-      utilisateurAvecEmail.id !== utilisateurIdConnecte
-    ) {
-      throw new ErreurHTTP(409, "Un utilisateur utilise déjà cet email")
-    }
-
-    const motDePasseHash = await hacherMotDePasse(mot_de_passe)
-
-    try {
-      const utilisateurModifie = await updateUtilisateur(
-        utilisateurIdDemande,
-        utilisateurIdConnecte,
-        { nom, prenom, email, mot_de_passe: motDePasseHash }
-      )
-
-      if (!utilisateurModifie) {
-        throw new ErreurHTTP(404, "Utilisateur introuvable")
-      }
-
-      response.json(utilisateurModifie)
-    } catch (error) {
-      if (error instanceof ErreurHTTP) throw error
-
-      if (estErreurDoublon(error)) {
-        throw new ErreurHTTP(409, "Un utilisateur utilise déjà cet email")
-      }
-      throw error
-    }
+    throw error
   }
-)
-
-export const deleteUtilisateurById = asyncHandler(
-  async (request, response) => {
-    const validation = validerIdUtilisateur(request.params.id)
-
-    if (!validation.estValide) {
-      throw new ErreurHTTP(400, validation.message)
-    }
-
-    const utilisateurIdConnecte = request.utilisateur.utilisateurId
-
-    try {
-      const utilisateurSupprime = await deleteUtilisateur(
-        validation.donnees.id,
-        utilisateurIdConnecte
-      )
-
-      if (!utilisateurSupprime) {
-        throw new ErreurHTTP(404, "Utilisateur introuvable")
-      }
-
-      response.json({
-        message: "Utilisateur supprimé",
-        utilisateur: utilisateurSupprime,
-      })
-    } catch (error) {
-      if (error instanceof ErreurHTTP) throw error
-
-      // 23503 : encore propriétaire de comptes/catégories/budgets/objectifs.
-      if (estErreurCleEtrangere(error)) {
-        throw new ErreurHTTP(
-          409,
-          "Cet utilisateur possède encore des comptes, catégories, budgets ou objectifs"
-        )
-      }
-      throw error
-    }
-  }
-)
+})

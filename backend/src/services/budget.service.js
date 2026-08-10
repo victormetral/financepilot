@@ -1,56 +1,33 @@
 /*
   SERVICE DES BUDGETS
 
-  Utilisé par :
-  - budget.controller.js
-
-  Règles de sécurité :
-  - utilisateurId vient du JWT ;
-  - toutes les requêtes filtrent par utilisateur_id ;
-  - une catégorie étrangère ne peut pas être utilisée.
+  Utilisé par : budget.controller.js
+  Règles : utilisateurId vient du JWT ; toutes les requêtes
+  filtrent par utilisateur_id ; une catégorie étrangère est refusée.
 */
 
 import { pool } from "../config/database.js"
 
-export const findAllBudgets = async (
-  // 🟨 NOUVEAU : identifiant provenant du JWT.
-  utilisateurId,
-  categorie_id,
-  mois,
-  annee,
-  limite,
-  offset
-) => {
+export const findAllBudgets = async (utilisateurId, categorie_id, mois, annee, limite, offset) => {
   const valeurs = [utilisateurId]
-
-  const conditions = [
-    "budget.utilisateur_id = $1",
-  ]
+  const conditions = ["budget.utilisateur_id = $1"]
 
   if (categorie_id !== undefined) {
     valeurs.push(categorie_id)
-    conditions.push(
-      `budget.categorie_id = $${valeurs.length}`
-    )
+    conditions.push(`budget.categorie_id = $${valeurs.length}`)
   }
 
   if (mois !== undefined) {
     valeurs.push(mois)
-    conditions.push(
-      `budget.mois = $${valeurs.length}`
-    )
+    conditions.push(`budget.mois = $${valeurs.length}`)
   }
 
   if (annee !== undefined) {
     valeurs.push(annee)
-    conditions.push(
-      `budget.annee = $${valeurs.length}`
-    )
+    conditions.push(`budget.annee = $${valeurs.length}`)
   }
 
-  const filtre =
-    `WHERE ${conditions.join(" AND ")}`
-
+  const filtre = `WHERE ${conditions.join(" AND ")}`
   const valeursFiltres = [...valeurs]
 
   valeurs.push(limite)
@@ -61,17 +38,11 @@ export const findAllBudgets = async (
 
   const resultatBudgets = await pool.query(
     `
-      SELECT
-        budget.*,
-        categorie.nom AS nom_categorie
+      SELECT budget.*, categorie.nom AS nom_categorie
       FROM budget
-      JOIN categorie
-        ON categorie.id = budget.categorie_id
+      JOIN categorie ON categorie.id = budget.categorie_id
       ${filtre}
-      ORDER BY
-        budget.annee DESC,
-        budget.mois DESC,
-        budget.id DESC
+      ORDER BY budget.annee DESC, budget.mois DESC, budget.id DESC
       LIMIT $${numeroLimite}
       OFFSET $${numeroOffset}
     `,
@@ -79,37 +50,23 @@ export const findAllBudgets = async (
   )
 
   const resultatTotal = await pool.query(
-    `
-      SELECT COUNT(*) AS total
-      FROM budget
-      ${filtre}
-    `,
+    `SELECT COUNT(*) AS total FROM budget ${filtre}`,
     valeursFiltres
   )
 
   return {
     budgets: resultatBudgets.rows,
-    total: Number(
-      resultatTotal.rows[0].total
-    ),
+    total: Number(resultatTotal.rows[0].total),
   }
 }
 
-export const findBudgetById = async (
-  id,
-  // 🟨 NOUVEAU
-  utilisateurId
-) => {
+export const findBudgetById = async (id, utilisateurId) => {
   const result = await pool.query(
     `
-      SELECT
-        budget.*,
-        categorie.nom AS nom_categorie
+      SELECT budget.*, categorie.nom AS nom_categorie
       FROM budget
-      JOIN categorie
-        ON categorie.id = budget.categorie_id
-      WHERE budget.id = $1
-        AND budget.utilisateur_id = $2
+      JOIN categorie ON categorie.id = budget.categorie_id
+      WHERE budget.id = $1 AND budget.utilisateur_id = $2
     `,
     [id, utilisateurId]
   )
@@ -117,104 +74,40 @@ export const findBudgetById = async (
   return result.rows[0]
 }
 
-/*
-  INSERT ... SELECT crée le budget uniquement si
-  la catégorie appartient au même utilisateur.
-*/
-export const createBudget = async (
-  // 🟨 NOUVEAU
-  utilisateurId,
-  {
-    categorie_id,
-    montant_limite,
-    mois,
-    annee,
-  }
-) => {
+// INSERT ... SELECT crée le budget uniquement si la catégorie appartient au même utilisateur.
+export const createBudget = async (utilisateurId, { categorie_id, montant_limite, mois, annee }) => {
   const result = await pool.query(
     `
-      INSERT INTO budget (
-        utilisateur_id,
-        categorie_id,
-        montant_limite,
-        mois,
-        annee
-      )
+      INSERT INTO budget (utilisateur_id, categorie_id, montant_limite, mois, annee)
       SELECT $1, $2, $3, $4, $5
-      WHERE EXISTS (
-        SELECT 1
-        FROM categorie
-        WHERE id = $2
-          AND utilisateur_id = $1
-      )
+      WHERE EXISTS (SELECT 1 FROM categorie WHERE id = $2 AND utilisateur_id = $1)
       RETURNING *
     `,
-    [
-      utilisateurId,
-      categorie_id,
-      montant_limite,
-      mois,
-      annee,
-    ]
+    [utilisateurId, categorie_id, montant_limite, mois, annee]
   )
 
   return result.rows[0]
 }
 
-export const updateBudget = async (
-  id,
-  // 🟨 NOUVEAU
-  utilisateurId,
-  {
-    categorie_id,
-    montant_limite,
-    mois,
-    annee,
-  }
-) => {
+export const updateBudget = async (id, utilisateurId, { categorie_id, montant_limite, mois, annee }) => {
   const result = await pool.query(
     `
       UPDATE budget
-      SET
-        categorie_id = $1,
-        montant_limite = $2,
-        mois = $3,
-        annee = $4
+      SET categorie_id = $1, montant_limite = $2, mois = $3, annee = $4
       WHERE id = $5
         AND utilisateur_id = $6
-        AND EXISTS (
-          SELECT 1
-          FROM categorie
-          WHERE categorie.id = $1
-            AND categorie.utilisateur_id = $6
-        )
+        AND EXISTS (SELECT 1 FROM categorie WHERE categorie.id = $1 AND categorie.utilisateur_id = $6)
       RETURNING *
     `,
-    [
-      categorie_id,
-      montant_limite,
-      mois,
-      annee,
-      id,
-      utilisateurId,
-    ]
+    [categorie_id, montant_limite, mois, annee, id, utilisateurId]
   )
 
   return result.rows[0]
 }
 
-export const deleteBudget = async (
-  id,
-  // 🟨 NOUVEAU
-  utilisateurId
-) => {
+export const deleteBudget = async (id, utilisateurId) => {
   const result = await pool.query(
-    `
-      DELETE FROM budget
-      WHERE id = $1
-        AND utilisateur_id = $2
-      RETURNING *
-    `,
+    `DELETE FROM budget WHERE id = $1 AND utilisateur_id = $2 RETURNING *`,
     [id, utilisateurId]
   )
 
