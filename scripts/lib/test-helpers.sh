@@ -19,7 +19,7 @@
 # Convention :
 # chaque script définit ses propres variables globales
 # (API_URL, RESPONSE_FILE, TOKEN...) avant de sourcer ce
-# fichier ou juste après, selon ses besoins.
+# fichier ou juste après, selon ses besoins. 
 # ============================================================
 
 # Affiche un titre homogène pour chaque étape du test.
