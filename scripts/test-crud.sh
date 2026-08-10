@@ -27,7 +27,7 @@
 set -Eeuo pipefail
 
 API_URL="http://localhost:3000/api"
-DATABASE_URL="postgresql://financepilot:financepilot@localhost:5434/financepilot"
+DATABASE_URL="postgresql://${DB_USER:-financepilot}:${DB_PASSWORD:-financepilot}@${DB_HOST:-localhost}:${DB_PORT:-5434}/${DB_NAME:-financepilot}"
 RESPONSE_FILE="/tmp/reponse-financepilot.json"
 TOKEN=""
 TIMESTAMP=$(date +%s)
