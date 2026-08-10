@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
 
-# Tests d'erreur de FinancePilot : validation, ressources absentes,
-# doublons et suppressions bloquées par les clés étrangères.
+# ============================================================
+# TESTS D'ERREUR DE FINANCEPILOT
+# ============================================================
 #
-# 🟨 NOUVEAU :
+# Rôle :
+# vérifie la validation des données, les ressources absentes,
+# les doublons et les suppressions bloquées par les clés
+# étrangères.
+#
+# Utilise :
+# - scripts/lib/test-helpers.sh (verifier_code_http, requete_http,
+#   recuperer_identifiant — mutualisé)
+#
 # actif_financier est réservé aux administrateurs en écriture.
 # L'utilisateur de test est promu administrateur via psql avant
 # la création de l'actif de test, puis reconnecté pour obtenir
 # un JWT à jour.
+# ============================================================
+
 set -euo pipefail
 
 BACKEND_URL="http://localhost:3000"
@@ -16,8 +27,8 @@ DATABASE_URL="postgresql://financepilot:financepilot@localhost:5434/financepilot
 TIMESTAMP=$(date +%s)
 RESPONSE_FILE="/tmp/financepilot-errors-$$.json"
 
-USER_ID=""
 TOKEN=""
+USER_ID=""
 ACCOUNT_ID=""
 CATEGORY_ID=""
 BUDGET_ID=""
@@ -26,23 +37,13 @@ TRANSACTION_ID=""
 OPERATION_ID=""
 TEST_COUNT=0
 
-request() {
-  local method="$1"
-  local url="$2"
-  local body="${3-}"
-  local curl_options=(-sS -o "$RESPONSE_FILE" -w "%{http_code}" -X "$method")
+# Fonctions communes mutualisées (requete_http, verifier_code_http,
+# recuperer_identifiant, afficher_etape).
+source "$(dirname "$0")/lib/test-helpers.sh"
 
-  if [[ -n "$TOKEN" ]]; then
-    curl_options+=(-H "Authorization: Bearer $TOKEN")
-  fi
-
-  if [[ -n "$body" ]]; then
-    curl_options+=(-H "Content-Type: application/json" -d "$body")
-  fi
-
-  curl "${curl_options[@]}" "$url"
-}
-
+# Vérifie qu'une requête renvoie bien le code HTTP attendu.
+# Fine couche au-dessus des fonctions mutualisées, pour compter
+# les tests exécutés (TEST_COUNT).
 expect_status() {
   local label="$1"
   local expected_status="$2"
@@ -52,19 +53,11 @@ expect_status() {
   local actual_status
 
   TEST_COUNT=$((TEST_COUNT + 1))
-  actual_status=$(request "$method" "$url" "$body")
-
-  if [[ "$actual_status" == "$expected_status" ]]; then
-    echo "✅ Test $TEST_COUNT — $label → HTTP $actual_status"
-    return
-  fi
-
-  echo "❌ ÉCHEC — $label"
-  echo "Attendu : HTTP $expected_status | Reçu : HTTP $actual_status"
-  cat "$RESPONSE_FILE"
-  exit 1
+  actual_status=$(requete_http "$method" "$url" "$body")
+  verifier_code_http "$actual_status" "$expected_status" "Test $TEST_COUNT — $label"
 }
 
+# Crée une donnée de test et arrête le script si la création échoue.
 create_test_data() {
   local variable_name="$1"
   local label="$2"
@@ -73,32 +66,27 @@ create_test_data() {
   local status
   local id
 
-  status=$(request POST "$url" "$body")
+  status=$(requete_http POST "$url" "$body")
   if [[ "$status" != "201" ]]; then
     echo "❌ Impossible de créer $label → HTTP $status"
     cat "$RESPONSE_FILE"
     exit 1
   fi
 
-  id=$(jq -r '.id // empty' "$RESPONSE_FILE")
-  if [[ -z "$id" ]]; then
-    echo "❌ La création de $label ne renvoie pas d'identifiant"
-    cat "$RESPONSE_FILE"
-    exit 1
-  fi
-
+  id=$(recuperer_identifiant "$label")
   printf -v "$variable_name" '%s' "$id"
   echo "✅ Donnée préparée : $label → id $id"
 }
 
+# Supprime les données de test créées, dans l'ordre des dépendances.
 cleanup() {
-  [[ -n "$OPERATION_ID" ]] && request DELETE "$API_URL/operations-investissement/$OPERATION_ID" >/dev/null || true
-  [[ -n "$TRANSACTION_ID" ]] && request DELETE "$API_URL/transactions/$TRANSACTION_ID" >/dev/null || true
-  [[ -n "$BUDGET_ID" ]] && request DELETE "$API_URL/budgets/$BUDGET_ID" >/dev/null || true
-  [[ -n "$ASSET_ID" ]] && request DELETE "$API_URL/actifs-financiers/$ASSET_ID" >/dev/null || true
-  [[ -n "$CATEGORY_ID" ]] && request DELETE "$API_URL/categories/$CATEGORY_ID" >/dev/null || true
-  [[ -n "$ACCOUNT_ID" ]] && request DELETE "$API_URL/comptes/$ACCOUNT_ID" >/dev/null || true
-  [[ -n "$USER_ID" ]] && request DELETE "$API_URL/utilisateurs/$USER_ID" >/dev/null || true
+  [[ -n "$OPERATION_ID" ]] && requete_http DELETE "$API_URL/operations-investissement/$OPERATION_ID" >/dev/null || true
+  [[ -n "$TRANSACTION_ID" ]] && requete_http DELETE "$API_URL/transactions/$TRANSACTION_ID" >/dev/null || true
+  [[ -n "$BUDGET_ID" ]] && requete_http DELETE "$API_URL/budgets/$BUDGET_ID" >/dev/null || true
+  [[ -n "$ASSET_ID" ]] && requete_http DELETE "$API_URL/actifs-financiers/$ASSET_ID" >/dev/null || true
+  [[ -n "$CATEGORY_ID" ]] && requete_http DELETE "$API_URL/categories/$CATEGORY_ID" >/dev/null || true
+  [[ -n "$ACCOUNT_ID" ]] && requete_http DELETE "$API_URL/comptes/$ACCOUNT_ID" >/dev/null || true
+  [[ -n "$USER_ID" ]] && requete_http DELETE "$API_URL/utilisateurs/$USER_ID" >/dev/null || true
   rm -f "$RESPONSE_FILE"
 }
 
@@ -111,7 +99,7 @@ for command in curl jq; do
   fi
 done
 
-if [[ "$(request GET "$BACKEND_URL/")" != "200" ]]; then
+if [[ "$(requete_http GET "$BACKEND_URL/")" != "200" ]]; then
   echo "❌ Backend inaccessible"
   cat "$RESPONSE_FILE"
   exit 1
@@ -130,7 +118,7 @@ create_test_data USER_ID "l'utilisateur" "$API_URL/utilisateurs" "{
   \"mot_de_passe\": \"TestFinance123!\"
 }"
 
-if [[ "$(request POST "$API_URL/auth/connexion" "{
+if [[ "$(requete_http POST "$API_URL/auth/connexion" "{
   \"email\": \"$EMAIL\",
   \"mot_de_passe\": \"TestFinance123!\"
 }")" != "200" ]]; then
@@ -159,14 +147,13 @@ create_test_data CATEGORY_ID "la catégorie" "$API_URL/categories" "{
   \"type_categorie\": \"depense\"
 }"
 
-# 🟨 NOUVEAU
 # actif_financier est réservé aux administrateurs en écriture :
 # on promeut l'utilisateur de test puis on se reconnecte pour
 # obtenir un JWT contenant le nouveau role.
 psql "$DATABASE_URL" -q -c \
   "UPDATE utilisateur SET role = 'administrateur' WHERE id = $USER_ID;"
 
-if [[ "$(request POST "$API_URL/auth/connexion" "{
+if [[ "$(requete_http POST "$API_URL/auth/connexion" "{
   \"email\": \"$EMAIL\",
   \"mot_de_passe\": \"TestFinance123!\"
 }")" != "200" ]]; then

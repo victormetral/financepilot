@@ -1,22 +1,27 @@
 #!/usr/bin/env bash
 
 # ============================================================
-# FINANCEPILOT - COMPLETE CRUD API TEST
+# FINANCEPILOT - TEST CRUD COMPLET DE L'API
 # ============================================================
 #
-# Role:
-# - creates one isolated user and the data it needs;
-# - tests Create, Read and Update for the 8 API resources;
-# - deletes the test data in dependency order at the end.
+# Rôle :
+# - crée un utilisateur isolé et les données dont il a besoin ;
+# - teste Create, Read et Update pour les 8 ressources de l'API ;
+# - supprime les données de test dans l'ordre des dépendances
+#   à la fin.
 #
-# The script is intentionally linear: each resource uses the identifiers
-# created by the previous resources. New CRUD blocks can follow the same model.
+# Le script est volontairement linéaire : chaque ressource
+# utilise les identifiants créés par les ressources précédentes.
+# De nouveaux blocs CRUD peuvent suivre le même modèle.
 #
-# 🟨 NOUVEAU :
-# actif_financier est désormais un référentiel réservé aux
-# administrateurs en écriture (POST/PUT/DELETE). L'utilisateur
-# de test créé ici est donc promu administrateur juste avant
-# la section 7, puis reconnecté pour obtenir un JWT à jour.
+# Utilise :
+# - scripts/lib/test-helpers.sh (afficher_etape, verifier_code_http,
+#   requete_http, recuperer_identifiant — mutualisé)
+#
+# actif_financier est un référentiel réservé aux administrateurs
+# en écriture. L'utilisateur de test est promu administrateur via
+# psql juste avant la section 7, puis reconnecté pour obtenir un
+# JWT à jour.
 # ============================================================
 
 set -Eeuo pipefail
@@ -33,80 +38,18 @@ EMAIL_TEST="crud-${TIMESTAMP}@financepilot.test"
 MOT_DE_PASSE_INITIAL="TestFinance123!"
 MOT_DE_PASSE_MODIFIE="TestFinance456!"
 
+# Fonctions communes mutualisées.
+source "$(dirname "$0")/lib/test-helpers.sh"
+
 nettoyer_fichier_reponse() {
   rm -f "$RESPONSE_FILE"
 }
 
 trap nettoyer_fichier_reponse EXIT
 
-# ============================================================
-# FONCTIONS COMMUNES
-# ============================================================
-
-# Affiche un titre homogène pour chaque étape du test.
-afficher_etape() {
-  echo
-  echo "=================================================="
-  echo "$1"
-  echo "=================================================="
-}
-
-# Arrête le script si le code HTTP est différent de celui attendu.
-verifier_code_http() {
-  local code_recu="$1"
-  local code_attendu="$2"
-  local nom_test="$3"
-
-  if [ "$code_recu" != "$code_attendu" ]; then
-    echo "❌ ÉCHEC : $nom_test"
-    echo "Code attendu : $code_attendu"
-    echo "Code reçu    : $code_recu"
-    echo
-    echo "Réponse reçue :"
-    cat "$RESPONSE_FILE"
-    exit 1
-  fi
-
-  echo "✅ $nom_test → HTTP $code_recu"
-} 
-
-# Envoie une requête API, sauvegarde sa réponse JSON et renvoie son code HTTP.
-# Le JWT est ajouté automatiquement dès que TOKEN contient une valeur.
-requete_http() {
-  local methode="$1"
-  local url="$2"
-  local donnees="${3:-}"
-  local options_curl=(-sS -o "$RESPONSE_FILE" -w "%{http_code}" -X "$methode")
-
-  if [ -n "$donnees" ]; then
-    options_curl+=(-H "Content-Type: application/json" -d "$donnees")
-  fi
-
-  if [ -n "$TOKEN" ]; then
-    options_curl+=(-H "Authorization: Bearer $TOKEN")
-  fi
-
-  curl "${options_curl[@]}" "$url"
-}
-
-# Extrait l'identifiant de la dernière réponse JSON et vérifie sa présence.
-recuperer_identifiant() {
-  local nom_ressource="$1"
-  local identifiant
-
-  identifiant=$(jq -r '.id // empty' "$RESPONSE_FILE")
-
-  if [ -z "$identifiant" ]; then
-    echo "❌ L'identifiant de $nom_ressource est absent de la réponse."
-    cat "$RESPONSE_FILE"
-    exit 1
-  fi
-
-  printf '%s' "$identifiant"
-}
-
 # Supprime une ressource à partir de sa route et de son identifiant.
-# Cette fonction évite de répéter le même bloc DELETE pour chaque future ressource.
+# Spécifique à ce script (les autres n'ont pas besoin de nettoyage
+# en cascade aussi complet).
 supprimer_ressource() {
   local route="$1"
   local identifiant="$2"
@@ -118,7 +61,7 @@ supprimer_ressource() {
 }
 
 # ============================================================
-# PREREQUIS
+# PRÉREQUIS
 # ============================================================
 
 afficher_etape "VÉRIFICATION DES PRÉREQUIS"
@@ -138,7 +81,7 @@ CODE_HTTP=$(requete_http "GET" "http://localhost:3000/")
 verifier_code_http "$CODE_HTTP" "200" "Backend accessible"
 
 # ============================================================
-# 1. USER CRUD
+# 1. CRUD UTILISATEUR
 # ============================================================
 
 afficher_etape "1. CRUD UTILISATEUR"
@@ -153,10 +96,6 @@ verifier_code_http "$CODE_HTTP" "201" "Création utilisateur"
 
 UTILISATEUR_ID=$(recuperer_identifiant "l'utilisateur")
 echo "Utilisateur créé avec l’identifiant : $UTILISATEUR_ID"
-
-# ============================================================
-# AUTHENTICATION FOR PROTECTED ROUTES
-# ============================================================
 
 afficher_etape "AUTHENTIFICATION POUR LES ROUTES PROTÉGÉES"
 
@@ -188,10 +127,8 @@ CODE_HTTP=$(requete_http "PUT" "$API_URL/utilisateurs/$UTILISATEUR_ID" "{
 verifier_code_http "$CODE_HTTP" "200" "Modification utilisateur"
 
 # ============================================================
-# 2. ACCOUNT CRUD
+# 2. CRUD COMPTE
 # ============================================================
-# 🟨 CORRIGÉ
-# type_compte and sous_type_compte must always be coherent.
 
 afficher_etape "2. CRUD COMPTE"
 
@@ -221,7 +158,7 @@ CODE_HTTP=$(requete_http "PUT" "$API_URL/comptes/$COMPTE_ID" "{
 verifier_code_http "$CODE_HTTP" "200" "Modification compte"
 
 # ============================================================
-# 3. CATEGORY CRUD
+# 3. CRUD CATÉGORIE
 # ============================================================
 
 afficher_etape "3. CRUD CATÉGORIE"
@@ -246,7 +183,7 @@ CODE_HTTP=$(requete_http "PUT" "$API_URL/categories/$CATEGORIE_ID" "{
 verifier_code_http "$CODE_HTTP" "200" "Modification catégorie"
 
 # ============================================================
-# 4. TRANSACTION CRUD
+# 4. CRUD TRANSACTION
 # ============================================================
 
 afficher_etape "4. CRUD TRANSACTION"
@@ -278,7 +215,7 @@ CODE_HTTP=$(requete_http "PUT" "$API_URL/transactions/$TRANSACTION_ID" "{
 verifier_code_http "$CODE_HTTP" "200" "Modification transaction"
 
 # ============================================================
-# 5. BUDGET CRUD
+# 5. CRUD BUDGET
 # ============================================================
 
 afficher_etape "5. CRUD BUDGET"
@@ -308,7 +245,7 @@ CODE_HTTP=$(requete_http "PUT" "$API_URL/budgets/$BUDGET_ID" "{
 verifier_code_http "$CODE_HTTP" "200" "Modification budget"
 
 # ============================================================
-# 6. GOAL CRUD
+# 6. CRUD OBJECTIF
 # ============================================================
 
 afficher_etape "6. CRUD OBJECTIF"
@@ -340,12 +277,8 @@ CODE_HTTP=$(requete_http "PUT" "$API_URL/objectifs/$OBJECTIF_ID" "{
 verifier_code_http "$CODE_HTTP" "200" "Modification objectif"
 
 # ============================================================
-# 7. FINANCIAL ASSET CRUD
+# 7. CRUD ACTIF FINANCIER
 # ============================================================
-# 🟨 NOUVEAU
-# actif_financier est réservé aux administrateurs en écriture.
-# On promeut l'utilisateur de test via psql, puis on se
-# reconnecte pour obtenir un JWT contenant le nouveau role.
 
 afficher_etape "7. CRUD ACTIF FINANCIER"
 
@@ -386,7 +319,7 @@ CODE_HTTP=$(requete_http "PUT" "$API_URL/actifs-financiers/$ACTIF_ID" "{
 verifier_code_http "$CODE_HTTP" "200" "Modification actif financier"
 
 # ============================================================
-# 8. INVESTMENT OPERATION CRUD
+# 8. CRUD OPÉRATION D'INVESTISSEMENT
 # ============================================================
 
 afficher_etape "8. CRUD OPÉRATION D’INVESTISSEMENT"
@@ -420,9 +353,10 @@ CODE_HTTP=$(requete_http "PUT" "$API_URL/operations-investissement/$OPERATION_ID
 verifier_code_http "$CODE_HTTP" "200" "Modification opération d’investissement"
 
 # ============================================================
-# TEST DATA CLEANUP
+# SUPPRESSION DES DONNÉES DE TEST
 # ============================================================
-# Delete children before their parents to respect PostgreSQL foreign keys.
+# Les enfants sont supprimés avant leurs parents pour respecter
+# les clés étrangères PostgreSQL.
 
 afficher_etape "SUPPRESSION DES DONNÉES DE TEST"
 
