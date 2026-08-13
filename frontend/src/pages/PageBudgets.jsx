@@ -4,9 +4,6 @@
 //
 // Utilisé par : App.jsx (route /budgets)
 // Utilise : BudgetForm.jsx, BudgetList.jsx
-//
-// BudgetForm a besoin de la liste des catégories pour son
-// <select> : elle vient aussi du contexte partagé.
 
 import { useOutletContext } from "react-router-dom"
 import BudgetForm from "../components/BudgetForm.jsx"
@@ -19,6 +16,7 @@ function PageBudgets() {
     gererCreationBudget,
     gererModificationBudget,
     gererSuppressionBudget,
+    message,
   } = useOutletContext()
 
   return (
@@ -29,6 +27,8 @@ function PageBudgets() {
           Fixez des limites mensuelles par catégorie.
         </p>
       </header>
+
+      {message && <p className="page__message">{message}</p>}
 
       <section className="page__section">
         <h2>Créer un budget</h2>

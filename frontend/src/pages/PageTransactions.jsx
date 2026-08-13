@@ -4,9 +4,6 @@
 //
 // Utilisé par : App.jsx (route /transactions)
 // Utilise : TransactionForm.jsx, TransactionList.jsx
-//
-// A besoin à la fois des comptes et des catégories pour ses
-// <select>, en plus de ses propres données.
 
 import { useOutletContext } from "react-router-dom"
 import TransactionForm from "../components/TransactionForm.jsx"
@@ -22,6 +19,7 @@ function PageTransactions() {
     gererCreationTransaction,
     gererModificationTransaction,
     gererSuppressionTransaction,
+    message,
   } = useOutletContext()
 
   return (
@@ -32,6 +30,8 @@ function PageTransactions() {
           Enregistrez vos dépenses, revenus et transferts.
         </p>
       </header>
+
+      {message && <p className="page__message">{message}</p>}
 
       <section className="page__section">
         <h2>Ajouter une transaction</h2>

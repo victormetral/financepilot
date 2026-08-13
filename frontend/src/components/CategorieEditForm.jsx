@@ -14,40 +14,43 @@ function CategorieEditForm({ categorie, onModification, onAnnulation }) {
   function gererEnvoi(event) {
     event.preventDefault()
 
-    onModification(categorie.id, {
-      nom,
-      typeCategorie,
-    })
+    onModification(categorie.id, { nom, typeCategorie })
   }
 
   return (
-    <form onSubmit={gererEnvoi}>
-      <label htmlFor={`nomCategorieModifiee-${categorie.id}`}>
-        Nom
-      </label>
-      <input
-        id={`nomCategorieModifiee-${categorie.id}`}
-        type="text"
-        value={nom}
-        onChange={(event) => setNom(event.target.value)}
-        required
-      />
+    <form onSubmit={gererEnvoi} className="formulaire">
+      <div className="formulaire__champ">
+        <label htmlFor={`nomCategorieModifiee-${categorie.id}`}>Nom</label>
+        <input
+          id={`nomCategorieModifiee-${categorie.id}`}
+          type="text"
+          value={nom}
+          onChange={(event) => setNom(event.target.value)}
+          required
+        />
+      </div>
 
-      <label htmlFor={`typeCategorieModifiee-${categorie.id}`}>
-        Type
-      </label>
-      <input
-        id={`typeCategorieModifiee-${categorie.id}`}
-        type="text"
-        value={typeCategorie}
-        onChange={(event) => setTypeCategorie(event.target.value)}
-        required
-      />
+      <div className="formulaire__champ">
+        <label htmlFor={`typeCategorieModifiee-${categorie.id}`}>Nature</label>
+        <select
+          id={`typeCategorieModifiee-${categorie.id}`}
+          value={typeCategorie}
+          onChange={(event) => setTypeCategorie(event.target.value)}
+          required
+        >
+          <option value="depense">Dépense</option>
+          <option value="revenu">Revenu</option>
+        </select>
+      </div>
 
-      <button type="submit">Enregistrer</button>
-      <button type="button" onClick={onAnnulation}>
-        Annuler
-      </button>
+      <div style={{ display: "flex", gap: "var(--espace-2)" }}>
+        <button type="submit" className="formulaire__bouton">
+          Enregistrer
+        </button>
+        <button type="button" className="bouton-secondaire" onClick={onAnnulation}>
+          Annuler
+        </button>
+      </div>
     </form>
   )
 }

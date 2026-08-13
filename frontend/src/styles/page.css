@@ -6,12 +6,13 @@
    en cartes, formulaires, listes, boutons — et la page de
    connexion.
 
-   Les composants existants (CompteForm, CompteList...) utilisent
-   des balises HTML brutes sans classe. Ce fichier les cible donc
-   par sélecteur d'élément à l'intérieur de .page, ce qui évite
-   de modifier chaque composant individuellement.
+   Les styles par balise (form, input, label) de l'ancienne
+   version ont été supprimés : ils entraient en conflit avec la
+   grille .formulaire et provoquaient des champs surdimensionnés
+   et des labels mal alignés. Tout passe désormais par des
+   classes explicites.
 
-   Utilisé par : toutes les pages (via App.jsx/Layout.jsx)
+   Utilisé par : toutes les pages
    Utilise : styles/tokens.css
    ============================================================ */
 
@@ -22,7 +23,7 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--espace-6);
+  gap: var(--espace-5);
   max-width: 880px;
 }
 
@@ -48,154 +49,192 @@
 }
 
 .page__section h2 {
-  font-size: var(--taille-base);
+  font-size: var(--taille-xs);
   color: var(--texte-doux);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   font-weight: 600;
+}
+
+.page__message {
+  padding: var(--espace-3) var(--espace-4);
+  background: var(--accent-fond);
+  color: var(--accent);
+  border-radius: var(--rayon-md);
+  font-size: var(--taille-sm);
 }
 
 /* ------------------------------------------------------------
    2. FORMULAIRES
    ------------------------------------------------------------
-   Grille responsive : chaque champ prend sa largeur naturelle,
-   passe à la ligne suivante si la page est trop étroite.
+   Grille de colonnes égales : chaque champ occupe une cellule,
+   le bouton se place en fin de ligne et garde sa hauteur propre.
    ------------------------------------------------------------ */
 
-.page__section form {
+/* ------------------------------------------------------------
+   2. FORMULAIRES
+   ------------------------------------------------------------
+   Un champ par ligne : label au-dessus, champ en dessous.
+   Plus lisible qu'une grille multi-colonnes, qui rendait
+   l'ordre de lecture confus (labels et champs mélangés).
+   ------------------------------------------------------------ */
+
+.formulaire {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  flex-direction: column;
   gap: var(--espace-4);
+  max-width: 420px;
 }
 
-.page__section form > label,
-.page__section form > select,
-.page__section form > input {
+.formulaire__champ {
   display: flex;
   flex-direction: column;
   gap: var(--espace-2);
+}
+
+.formulaire__champ label {
   font-size: var(--taille-xs);
   color: var(--texte-doux);
   font-weight: 500;
 }
 
-.page__section input,
-.page__section select {
-  padding: var(--espace-3);
+.formulaire__champ input,
+.formulaire__champ select {
+  width: 100%;
+  height: 38px;
+  padding: 0 var(--espace-3);
   border: 1px solid var(--bordure);
   border-radius: var(--rayon-md);
   background: var(--fond);
   color: var(--texte);
   font-size: var(--taille-sm);
-  min-width: 140px;
   transition: border-color var(--transition);
 }
 
-.page__section input:focus,
-.page__section select:focus {
+.formulaire__champ input::placeholder {
+  color: var(--texte-faible);
+}
+
+.formulaire__champ input:focus,
+.formulaire__champ select:focus {
   outline: none;
   border-color: var(--accent);
 }
 
-/* Les labels natifs entourent {texte + input} : on force la
-   même structure verticale pour rester cohérent visuellement. */
-.page__section label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--espace-2);
-  font-size: var(--taille-xs);
-  color: var(--texte-doux);
-  font-weight: 500;
+.formulaire__champ select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.page__section label input,
-.page__section label select {
-  min-width: 200px;
-}
-
-/* ------------------------------------------------------------
-   3. BOUTONS
-   ------------------------------------------------------------ */
-
-.page__section button {
-  padding: var(--espace-3) var(--espace-4);
-  border: 1px solid transparent;
+.formulaire__bouton {
+  align-self: flex-start;
+  height: 38px;
+  padding: 0 var(--espace-5);
+  border: none;
   border-radius: var(--rayon-md);
   background: var(--accent);
   color: var(--accent-contraste);
   font-size: var(--taille-sm);
   font-weight: 600;
-  transition: opacity var(--transition), transform var(--transition);
+  white-space: nowrap;
+  transition: opacity var(--transition);
 }
 
-.page__section button:hover {
+.formulaire__bouton:hover {
   opacity: 0.88;
 }
 
-.page__section button:active {
-  transform: scale(0.98);
-}
-
-/* Boutons secondaires (Modifier, Annuler) : le 2e bouton d'un
-   groupe, ou tout bouton explicitement "type=button" hors
-   formulaire de création, reste discret. */
-.page__section li button,
-.page__section form button[type="button"] {
-  background: transparent;
-  border-color: var(--bordure);
-  color: var(--texte-doux);
-}
-
-.page__section li button:hover,
-.page__section form button[type="button"]:hover {
-  background: var(--surface-haute);
-  border-color: var(--bordure-forte);
-  opacity: 1;
-}
-
-/* Boutons de suppression : dernier bouton d'une ligne de liste. */
-.page__section li button:last-of-type {
-  color: var(--negatif);
-}
-
-.page__section li button:last-of-type:hover {
-  background: rgba(224, 90, 75, 0.1);
-  border-color: var(--negatif);
-}
-
 /* ------------------------------------------------------------
-   4. LISTES
+   3. LISTES
    ------------------------------------------------------------ */
 
-.page__section ul {
+.liste {
   display: flex;
   flex-direction: column;
   gap: var(--espace-2);
   list-style: none;
+  padding: 0;
 }
 
-.page__section li {
+.liste__element {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: var(--espace-3);
+  justify-content: space-between;
+  gap: var(--espace-4);
   padding: var(--espace-4);
   border: 1px solid var(--bordure);
   border-radius: var(--rayon-md);
-  font-size: var(--taille-sm);
 }
 
-.page__section li:has(form) {
+/* Un formulaire d'édition ouvert occupe toute la ligne. */
+.liste__element:has(form) {
   flex-direction: column;
   align-items: stretch;
 }
 
-/* Message d'état vide (ex: "Aucune transaction enregistrée."). */
-.page__section p {
+.liste__contenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.liste__titre {
+  font-size: var(--taille-sm);
+  font-weight: 600;
+}
+
+.liste__detail {
+  font-size: var(--taille-xs);
+  color: var(--texte-doux);
+}
+
+.liste__actions {
+  display: flex;
+  gap: var(--espace-2);
+  flex-shrink: 0;
+}
+
+.liste__vide {
   color: var(--texte-faible);
   font-size: var(--taille-sm);
   font-style: italic;
+}
+
+/* ------------------------------------------------------------
+   4. BOUTONS SECONDAIRES
+   ------------------------------------------------------------ */
+
+.bouton-secondaire,
+.bouton-danger {
+  height: 32px;
+  padding: 0 var(--espace-3);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-md);
+  background: transparent;
+  font-size: var(--taille-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.bouton-secondaire {
+  color: var(--texte-doux);
+}
+
+.bouton-secondaire:hover {
+  background: var(--surface-haute);
+  border-color: var(--bordure-forte);
+}
+
+.bouton-danger {
+  color: var(--negatif);
+}
+
+.bouton-danger:hover {
+  background: var(--negatif);
+  color: var(--surface);
+  border-color: var(--negatif);
 }
 
 /* ------------------------------------------------------------
@@ -273,7 +312,8 @@
 }
 
 .page-connexion input {
-  padding: var(--espace-3);
+  height: 38px;
+  padding: 0 var(--espace-3);
   border: 1px solid var(--bordure);
   border-radius: var(--rayon-md);
   background: var(--fond);
@@ -287,7 +327,7 @@
 }
 
 .page-connexion button {
-  padding: var(--espace-3);
+  height: 38px;
   border: none;
   border-radius: var(--rayon-md);
   background: var(--accent);

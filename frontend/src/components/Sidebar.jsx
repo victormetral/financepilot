@@ -6,17 +6,21 @@
 // affichage de l'utilisateur connecté, bascule de thème et
 // déconnexion. Persistante sur toutes les pages protégées.
 //
-// Utilisé par : App.jsx
-// Utilise : contexts/ThemeContext.jsx, react-router-dom
+// L'ordre des liens suit le parcours logique d'utilisation :
+// on crée d'abord ses comptes, puis ses catégories, avant de
+// pouvoir saisir des transactions et fixer des budgets.
+//
+// Utilisé par : Layout.jsx
+// Utilise : hooks/useTheme.js, react-router-dom
 
 import { NavLink } from "react-router-dom"
 import { useTheme } from "../hooks/useTheme.js"
 
 const LIENS_NAVIGATION = [
   { chemin: "/", libelle: "Tableau de bord", icone: "◈" },
-  { chemin: "/transactions", libelle: "Transactions", icone: "≡" },
   { chemin: "/comptes", libelle: "Comptes", icone: "▤" },
   { chemin: "/categories", libelle: "Catégories", icone: "◫" },
+  { chemin: "/transactions", libelle: "Transactions", icone: "≡" },
   { chemin: "/budgets", libelle: "Budgets", icone: "◔" },
   { chemin: "/objectifs", libelle: "Objectifs", icone: "◎" },
   { chemin: "/investissements", libelle: "Investissements", icone: "▲" },

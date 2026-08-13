@@ -18,6 +18,7 @@ import { createRoot } from "react-dom/client"
 import "./styles/tokens.css"
 import "./styles/layout.css"
 import "./styles/page.css"
+import "./styles/dashboard.css"
 import { ThemeProvider } from "./contexts/ThemeContext.jsx"
 import App from "./App.jsx"
 

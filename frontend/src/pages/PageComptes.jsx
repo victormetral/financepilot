@@ -2,14 +2,6 @@
 // PAGE — COMPTES BANCAIRES
 // ============================================================
 //
-// Rôle : reprend le formulaire et la liste de comptes déjà
-// existants, mais comme route indépendante plutôt que comme
-// section d'une page unique.
-//
-// Récupère ses données via useOutletContext() : elles viennent
-// de contexteRoutes, assemblé dans App.jsx et transmis par
-// Layout.jsx.
-//
 // Utilisé par : App.jsx (route /comptes)
 // Utilise : CompteForm.jsx, CompteList.jsx
 
@@ -25,6 +17,7 @@ function PageComptes() {
     gererCreationCompte,
     gererModificationCompte,
     gererSuppressionCompte,
+    message,
   } = useOutletContext()
 
   return (
@@ -35,6 +28,8 @@ function PageComptes() {
           Gérez vos comptes et leurs soldes.
         </p>
       </header>
+
+      {message && <p className="page__message">{message}</p>}
 
       <section className="page__section">
         <h2>Ajouter un compte</h2>

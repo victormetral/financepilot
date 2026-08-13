@@ -2,14 +2,18 @@
 // HOOK D'AUTHENTIFICATION
 // ============================================================
 //
-// Depuis Lot 5 : plus de localStorage. La session est portée
-// par le cookie httpOnly, envoyé automatiquement par le
-// navigateur — la restauration de session consiste juste à
-// appeler l'API et voir si elle répond 200 ou 401.
+// Rôle : gérer la connexion, l'inscription, la déconnexion et
+// la restauration de session au chargement de l'app.
+//
+// Expose aussi `message`/`setMessage`, car c'est l'état partagé
+// utilisé par tous les autres hooks (comptes, catégories, etc.)
+// pour afficher les retours de l'API. Le message s'efface tout
+// seul après quelques secondes — sinon il reste affiché en
+// changeant de page, ce qui n'a pas de sens une fois périmé.
 //
 // Utilisé par : App.jsx
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import {
   connecterUtilisateur,
@@ -18,9 +22,31 @@ import {
   recupererUtilisateurConnecte,
 } from "../services/auth.service.js"
 
+const DUREE_AFFICHAGE_MESSAGE_MS = 5000
+
 export function useAuth() {
   const [utilisateur, setUtilisateur] = useState(null)
   const [message, setMessage] = useState("")
+
+  // Permet d'annuler le minuteur précédent si un nouveau message
+  // arrive avant l'expiration du premier.
+  const minuteurMessage = useRef(null)
+
+  useEffect(() => {
+    if (minuteurMessage.current) {
+      clearTimeout(minuteurMessage.current)
+    }
+
+    if (!message) {
+      return
+    }
+
+    minuteurMessage.current = setTimeout(() => {
+      setMessage("")
+    }, DUREE_AFFICHAGE_MESSAGE_MS)
+
+    return () => clearTimeout(minuteurMessage.current)
+  }, [message])
 
   useEffect(() => {
     async function restaurerConnexion() {

@@ -4,6 +4,11 @@
 //
 // Utilisé par : App.jsx (route /categories)
 // Utilise : CategorieForm.jsx, CategorieList.jsx
+//
+// `message` vient du contexte partagé (useAuth) : il porte les
+// retours de toutes les actions (création, modification,
+// suppression), y compris les erreurs 409 quand une catégorie
+// est encore utilisée par un budget ou une transaction.
 
 import { useOutletContext } from "react-router-dom"
 import CategorieForm from "../components/CategorieForm.jsx"
@@ -17,6 +22,7 @@ function PageCategories() {
     gererCreationCategorie,
     gererModificationCategorie,
     gererSuppressionCategorie,
+    message,
   } = useOutletContext()
 
   return (
@@ -27,6 +33,8 @@ function PageCategories() {
           Organisez vos dépenses et revenus par catégorie.
         </p>
       </header>
+
+      {message && <p className="page__message">{message}</p>}
 
       <section className="page__section">
         <h2>Ajouter une catégorie</h2>

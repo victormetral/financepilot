@@ -1,0 +1,327 @@
+/* ============================================================
+   STYLE DU TABLEAU DE BORD
+   ============================================================
+
+   Rôle : stylise les cartes du dashboard (patrimoine, flux,
+   reste-à-vivre, budgets en tension) et leur disposition en
+   grille.
+
+   Utilisé par : pages/PageDashboard.jsx
+   Utilise : styles/tokens.css
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. GRILLE GÉNÉRALE
+   ------------------------------------------------------------
+   Le patrimoine (niveau 1) occupe toute la largeur ; le reste
+   (niveau 2/3) se répartit en grille responsive en dessous.
+   ------------------------------------------------------------ */
+
+.tableau-de-bord {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-5);
+  max-width: 960px;
+}
+
+.tableau-de-bord__grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--espace-5);
+}
+
+.tableau-de-bord__grille--deux {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+/* Bloc de carte générique, réutilisé par toutes les cartes. */
+.carte-patrimoine,
+.carte-flux,
+.carte-reste-a-vivre,
+.carte-budgets-tension {
+  padding: var(--espace-5);
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-lg);
+  box-shadow: var(--ombre-basse);
+}
+
+/* ------------------------------------------------------------
+   2. CARTE PATRIMOINE (niveau 1)
+   ------------------------------------------------------------ */
+
+.carte-patrimoine {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-2);
+}
+
+.carte-patrimoine__libelle {
+  font-size: var(--taille-sm);
+  color: var(--texte-doux);
+  font-weight: 500;
+}
+
+.carte-patrimoine__montant {
+  font-size: var(--taille-3xl);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.carte-patrimoine__detail {
+  display: flex;
+  gap: var(--espace-6);
+  margin-top: var(--espace-3);
+  padding-top: var(--espace-3);
+  border-top: 1px solid var(--bordure);
+}
+
+.carte-patrimoine__ligne {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-1);
+  font-size: var(--taille-sm);
+}
+
+.carte-patrimoine__ligne span:first-child {
+  color: var(--texte-doux);
+  font-size: var(--taille-xs);
+}
+
+.carte-patrimoine__ligne span:last-child {
+  font-weight: 600;
+}
+
+.carte-patrimoine__note {
+  margin-top: var(--espace-2);
+  font-size: var(--taille-xs);
+  color: var(--texte-faible);
+  font-style: italic;
+}
+
+/* ------------------------------------------------------------
+   3. CARTE FLUX DU MOIS (niveau 2)
+   ------------------------------------------------------------ */
+
+.carte-flux {
+  display: flex;
+  gap: var(--espace-6);
+}
+
+.carte-flux__colonne {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-1);
+  flex: 1;
+}
+
+.carte-flux__libelle {
+  font-size: var(--taille-xs);
+  color: var(--texte-doux);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.carte-flux__montant {
+  font-size: var(--taille-xl);
+  font-weight: 700;
+}
+
+.carte-flux__montant--positif {
+  color: var(--positif);
+}
+
+.carte-flux__montant--negatif {
+  color: var(--negatif);
+}
+
+.carte-flux__sous-texte {
+  font-size: var(--taille-xs);
+  color: var(--texte-faible);
+}
+
+/* ------------------------------------------------------------
+   4. CARTE RESTE À VIVRE (niveau 2)
+   ------------------------------------------------------------ */
+
+.carte-reste-a-vivre {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-2);
+}
+
+.carte-reste-a-vivre__libelle {
+  font-size: var(--taille-sm);
+  color: var(--texte-doux);
+  font-weight: 500;
+}
+
+.carte-reste-a-vivre__vide {
+  color: var(--texte-faible);
+  font-size: var(--taille-sm);
+  font-style: italic;
+}
+
+.carte-reste-a-vivre__principal {
+  display: flex;
+  align-items: baseline;
+  gap: var(--espace-2);
+}
+
+.carte-reste-a-vivre__principal .chiffre {
+  font-size: var(--taille-2xl);
+  font-weight: 700;
+}
+
+.carte-reste-a-vivre__sur {
+  font-size: var(--taille-sm);
+  color: var(--texte-doux);
+}
+
+.carte-reste-a-vivre__par-jour {
+  font-size: var(--taille-sm);
+  color: var(--texte-doux);
+}
+
+.carte-reste-a-vivre__barre {
+  height: 8px;
+  border-radius: var(--rayon-plein);
+  background: var(--bordure);
+  overflow: hidden;
+  margin-top: var(--espace-1);
+}
+
+.carte-reste-a-vivre__progression {
+  height: 100%;
+  background: var(--positif);
+  border-radius: var(--rayon-plein);
+  transition: width var(--transition);
+}
+
+.carte-reste-a-vivre__progression[data-surchauffe="true"] {
+  background: var(--negatif);
+}
+
+.carte-reste-a-vivre__pied {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--taille-xs);
+  color: var(--texte-doux);
+}
+
+.carte-reste-a-vivre__alerte {
+  color: var(--negatif);
+  font-weight: 600;
+}
+
+.carte-reste-a-vivre__hors-budget {
+  font-size: var(--taille-xs);
+  color: var(--alerte);
+}
+
+/* ------------------------------------------------------------
+   5. CARTE BUDGETS EN TENSION (niveau 3)
+   ------------------------------------------------------------ */
+
+.carte-budgets-tension {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-4);
+}
+
+.carte-budgets-tension__libelle {
+  font-size: var(--taille-sm);
+  color: var(--texte-doux);
+  font-weight: 500;
+}
+
+.carte-budgets-tension__vide {
+  color: var(--texte-faible);
+  font-size: var(--taille-sm);
+  font-style: italic;
+}
+
+.carte-budgets-tension__liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-3);
+  list-style: none;
+}
+
+.carte-budgets-tension__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-1);
+}
+
+.carte-budgets-tension__entete {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--taille-sm);
+  font-weight: 500;
+}
+
+.carte-budgets-tension__barre {
+  height: 6px;
+  border-radius: var(--rayon-plein);
+  background: var(--bordure);
+  overflow: hidden;
+}
+
+.carte-budgets-tension__progression {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--rayon-plein);
+  transition: width var(--transition);
+}
+
+.carte-budgets-tension__progression[data-depasse="true"] {
+  background: var(--negatif);
+}
+
+.carte-budgets-tension__montants {
+  font-size: var(--taille-xs);
+  color: var(--texte-doux);
+}
+
+/* ------------------------------------------------------------
+   6. ÉTAT VIDE (aucune donnée)
+   ------------------------------------------------------------ */
+
+.tableau-de-bord__accueil {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-4);
+  padding: var(--espace-6);
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-lg);
+  text-align: center;
+}
+
+.tableau-de-bord__accueil p {
+  color: var(--texte-doux);
+  font-size: var(--taille-sm);
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.tableau-de-bord__accueil-liens {
+  display: flex;
+  justify-content: center;
+  gap: var(--espace-3);
+}
+
+.tableau-de-bord__accueil-lien {
+  padding: var(--espace-3) var(--espace-4);
+  border-radius: var(--rayon-md);
+  background: var(--accent);
+  color: var(--accent-contraste);
+  font-size: var(--taille-sm);
+  font-weight: 600;
+}
+
+.tableau-de-bord__accueil-lien:hover {
+  opacity: 0.88;
+}

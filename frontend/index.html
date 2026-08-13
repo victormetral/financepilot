@@ -1,10 +1,34 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>FinancePilot</title>
+
+    <!--
+      Applique le thème AVANT que React ne démarre.
+
+      Sans ce script, data-theme n'est posé que par le useEffect
+      du ThemeProvider, donc après le premier rendu : la page
+      s'affiche brièvement dans le mauvais thème et il faut
+      recharger pour que tout suive.
+    -->
+    <script>
+      (function appliquerThemeInitial() {
+        var cle = "financepilot-theme"
+        var themeEnregistre = localStorage.getItem(cle)
+
+        var theme =
+          themeEnregistre === "clair" || themeEnregistre === "sombre"
+            ? themeEnregistre
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "sombre"
+              : "clair"
+
+        document.documentElement.setAttribute("data-theme", theme)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

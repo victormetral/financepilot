@@ -5,13 +5,8 @@
 // Rôle : assembler les hooks de domaine, gérer l'affichage
 // connecté/déconnecté, et déclarer les routes de l'application.
 //
-// Depuis Lot 6 : react-router-dom remplace l'affichage unique
-// en page longue. Chaque section (comptes, budgets...) devient
-// une route indépendante, avec la sidebar comme mise en page
-// commune (Layout.jsx).
-//
-// Les données de chaque hook sont regroupées dans contexteRoutes
-// et transmises aux pages via Layout → Outlet, pour éviter de
+// contexteRoutes regroupe les données de chaque hook et les
+// transmet aux pages via Layout → Outlet, pour éviter de
 // répéter les mêmes props sur chaque <Route>.
 
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
@@ -32,6 +27,7 @@ import { useComptes } from "./hooks/useComptes.js"
 import { useCategories } from "./hooks/useCategories.js"
 import { useBudgets } from "./hooks/useBudgets.js"
 import { useTransactions } from "./hooks/useTransactions.js"
+import { useOperationsInvestissement } from "./hooks/useOperationsInvestissement.js"
 
 function App() {
   const {
@@ -47,8 +43,8 @@ function App() {
   const categoriesData = useCategories(utilisateur, setMessage)
   const budgetsData = useBudgets(utilisateur, setMessage)
   const transactionsData = useTransactions(utilisateur, setMessage)
+  const operationsData = useOperationsInvestissement(utilisateur, setMessage)
 
-  // Non connecté : ni sidebar, ni routing, juste le formulaire.
   if (!utilisateur) {
     return (
       <main className="page-connexion">
@@ -65,12 +61,12 @@ function App() {
     )
   }
 
-  // Regroupe tout ce dont les pages ont besoin, transmis via Outlet.
   const contexteRoutes = {
     ...comptesData,
     ...categoriesData,
     ...budgetsData,
     ...transactionsData,
+    ...operationsData,
     message,
   }
 
@@ -95,7 +91,6 @@ function App() {
           <Route path="/investissements" element={<PageInvestissements />} />
         </Route>
 
-        {/* Toute route inconnue ramène au tableau de bord. */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
