@@ -10,7 +10,7 @@
 // Utilise : contexts/ThemeContext.jsx, react-router-dom
 
 import { NavLink } from "react-router-dom"
-import { useTheme } from "../contexts/ThemeContext.jsx"
+import { useTheme } from "../hooks/useTheme.js"
 
 const LIENS_NAVIGATION = [
   { chemin: "/", libelle: "Tableau de bord", icone: "◈" },
