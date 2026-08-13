@@ -1,0 +1,208 @@
+/* ============================================================
+   DESIGN TOKENS FINANCEPILOT
+   ============================================================
+
+   Rôle : définit toutes les variables de style (couleurs,
+   typographie, espacements, rayons, ombres) et les styles de
+   base du document.
+
+   Utilisé par : main.jsx (import unique, en tout premier)
+   Utilise : rien
+
+   Fonctionnement des thèmes :
+   les couleurs sont déclarées deux fois — une fois pour le
+   thème clair, une fois pour le thème sombre. Le thème actif
+   est choisi par l'attribut data-theme sur <html>. Les
+   composants n'utilisent jamais de couleur en dur, seulement
+   var(--nom-du-token).
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. PALETTE BRUTE
+   ------------------------------------------------------------
+   Valeurs sources, jamais utilisées directement dans les
+   composants : elles alimentent les tokens sémantiques
+   des sections 2 et 3.
+   ------------------------------------------------------------ */
+
+:root {
+  --graphite-950: #0b0c0e;
+  --graphite-900: #121417;
+  --graphite-850: #171a1e;
+  --graphite-800: #1e2226;
+  --graphite-700: #2a2f35;
+  --graphite-500: #6b747e;
+  --graphite-300: #a8b0b9;
+  --graphite-100: #e4e7ea;
+
+  --creme-50: #faf9f7;
+  --creme-100: #f2f0ec;
+  --creme-200: #e6e3dd;
+  --creme-300: #d4cfc6;
+
+  --jade-600: #0f8a6a;
+  --jade-500: #14a37d;
+  --jade-400: #22c495;
+
+  --corail-600: #c8483c;
+  --corail-500: #e05a4b;
+  --corail-400: #f27a6c;
+
+  --ambre-500: #d9902a;
+  --ambre-400: #eba63f;
+}
+
+/* ------------------------------------------------------------
+   2. THÈME CLAIR (par défaut)
+   ------------------------------------------------------------ */
+
+:root,
+[data-theme="clair"] {
+  --fond: var(--creme-50);
+  --surface: #ffffff;
+  --surface-haute: #ffffff;
+  --bordure: var(--creme-200);
+  --bordure-forte: var(--creme-300);
+
+  --texte: #16181b;
+  --texte-doux: #5c6068;
+  --texte-faible: #8b9098;
+
+  --accent: var(--jade-600);
+  --accent-contraste: #ffffff;
+  --accent-fond: rgba(15, 138, 106, 0.08);
+
+  --positif: var(--jade-600);
+  --negatif: var(--corail-600);
+  --alerte: var(--ambre-500);
+
+  --ombre-basse: 0 1px 2px rgba(22, 24, 27, 0.05);
+  --ombre-moyenne: 0 4px 16px rgba(22, 24, 27, 0.08);
+  --ombre-haute: 0 12px 32px rgba(22, 24, 27, 0.12);
+}
+
+/* ------------------------------------------------------------
+   3. THÈME SOMBRE
+   ------------------------------------------------------------ */
+
+[data-theme="sombre"] {
+  --fond: var(--graphite-950);
+  --surface: var(--graphite-900);
+  --surface-haute: var(--graphite-850);
+  --bordure: var(--graphite-800);
+  --bordure-forte: var(--graphite-700);
+
+  --texte: var(--graphite-100);
+  --texte-doux: var(--graphite-300);
+  --texte-faible: var(--graphite-500);
+
+  --accent: var(--jade-400);
+  --accent-contraste: var(--graphite-950);
+  --accent-fond: rgba(34, 196, 149, 0.12);
+
+  --positif: var(--jade-400);
+  --negatif: var(--corail-400);
+  --alerte: var(--ambre-400);
+
+  --ombre-basse: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --ombre-moyenne: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --ombre-haute: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+/* ------------------------------------------------------------
+   4. TYPOGRAPHIE, ESPACEMENTS, RAYONS
+   ------------------------------------------------------------
+   L'échelle d'espacement suit une base de 4 px : toutes les
+   marges du projet sont des multiples, ce qui évite les
+   alignements approximatifs.
+   ------------------------------------------------------------ */
+
+:root {
+  --police: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --police-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --taille-xs: 0.75rem;
+  --taille-sm: 0.8125rem;
+  --taille-base: 0.9375rem;
+  --taille-lg: 1.125rem;
+  --taille-xl: 1.5rem;
+  --taille-2xl: 2rem;
+  --taille-3xl: 2.75rem;
+
+  --espace-1: 0.25rem;
+  --espace-2: 0.5rem;
+  --espace-3: 0.75rem;
+  --espace-4: 1rem;
+  --espace-5: 1.5rem;
+  --espace-6: 2rem;
+  --espace-7: 3rem;
+
+  --rayon-sm: 6px;
+  --rayon-md: 10px;
+  --rayon-lg: 14px;
+  --rayon-plein: 999px;
+
+  --transition: 140ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ------------------------------------------------------------
+   5. RÉINITIALISATION MINIMALE
+   ------------------------------------------------------------ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+/* ------------------------------------------------------------
+   6. STYLES DE BASE DU DOCUMENT
+   ------------------------------------------------------------ */
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--fond);
+  color: var(--texte);
+  font-family: var(--police);
+  font-size: var(--taille-base);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--transition), color var(--transition);
+}
+
+/* Les chiffres à chasse fixe évitent que les montants
+   « sautent » quand ils changent — détail essentiel sur une
+   application financière. */
+.chiffre {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+h1, h2, h3 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}

@@ -1,0 +1,193 @@
+/* ============================================================
+   MISE EN PAGE GÉNÉRALE (SIDEBAR + CONTENU)
+   ============================================================
+
+   Rôle : structure la page en deux colonnes — une sidebar fixe
+   à gauche, une zone de contenu scrollable à droite — et
+   stylise la sidebar elle-même.
+
+   Utilisé par : Layout.jsx, Sidebar.jsx
+   Utilise : styles/tokens.css (variables de couleur/espacement)
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. STRUCTURE DEUX COLONNES
+   ------------------------------------------------------------ */
+
+.mise-en-page {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+
+.mise-en-page__contenu {
+  padding: var(--espace-6) var(--espace-7);
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------------------
+   2. SIDEBAR — CONTENEUR
+   ------------------------------------------------------------ */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  padding: var(--espace-5) var(--espace-4);
+  background: var(--surface);
+  border-right: 1px solid var(--bordure);
+}
+
+/* ------------------------------------------------------------
+   3. SIDEBAR — MARQUE
+   ------------------------------------------------------------ */
+
+.sidebar__marque {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-3);
+  padding: var(--espace-2) var(--espace-3);
+  margin-bottom: var(--espace-6);
+}
+
+.sidebar__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--rayon-md);
+  background: var(--accent);
+  color: var(--accent-contraste);
+  font-weight: 700;
+  font-size: var(--taille-sm);
+}
+
+.sidebar__nom {
+  font-weight: 600;
+  font-size: var(--taille-lg);
+  letter-spacing: -0.02em;
+}
+
+/* ------------------------------------------------------------
+   4. SIDEBAR — NAVIGATION
+   ------------------------------------------------------------ */
+
+.sidebar__navigation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-1);
+  flex: 1;
+}
+
+.sidebar__lien {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-3);
+  padding: var(--espace-3);
+  border-radius: var(--rayon-md);
+  color: var(--texte-doux);
+  font-size: var(--taille-sm);
+  font-weight: 500;
+  transition: background var(--transition), color var(--transition);
+}
+
+.sidebar__lien:hover {
+  background: var(--accent-fond);
+  color: var(--texte);
+}
+
+.sidebar__lien--actif {
+  background: var(--accent-fond);
+  color: var(--accent);
+}
+
+.sidebar__icone {
+  display: inline-flex;
+  width: 18px;
+  justify-content: center;
+  font-size: var(--taille-base);
+}
+
+/* ------------------------------------------------------------
+   5. SIDEBAR — PIED (THÈME + UTILISATEUR)
+   ------------------------------------------------------------ */
+
+.sidebar__pied {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-3);
+  padding-top: var(--espace-4);
+  border-top: 1px solid var(--bordure);
+}
+
+.sidebar__bouton-theme {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-2);
+  padding: var(--espace-2) var(--espace-3);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-md);
+  background: transparent;
+  color: var(--texte-doux);
+  font-size: var(--taille-xs);
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.sidebar__bouton-theme:hover {
+  background: var(--surface-haute);
+  border-color: var(--bordure-forte);
+}
+
+.sidebar__utilisateur {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-3);
+  padding: var(--espace-2) var(--espace-3);
+}
+
+.sidebar__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: var(--rayon-plein);
+  background: var(--accent-fond);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: var(--taille-xs);
+}
+
+.sidebar__identite {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sidebar__nom-utilisateur {
+  font-size: var(--taille-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar__deconnexion {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--texte-faible);
+  font-size: var(--taille-xs);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sidebar__deconnexion:hover {
+  color: var(--negatif);
+}

@@ -2,20 +2,30 @@
 // COMPOSANT PRINCIPAL FINANCEPILOT
 // ============================================================
 //
-// Rôle : assembler les hooks de domaine (auth, comptes,
-// catégories, budgets, transactions) et les transmettre aux
-// composants d'affichage. Depuis Lot 4, toute la logique d'état
-// vit dans hooks/ — ce fichier ne fait plus que du branchement.
+// Rôle : assembler les hooks de domaine, gérer l'affichage
+// connecté/déconnecté, et déclarer les routes de l'application.
+//
+// Depuis Lot 6 : react-router-dom remplace l'affichage unique
+// en page longue. Chaque section (comptes, budgets...) devient
+// une route indépendante, avec la sidebar comme mise en page
+// commune (Layout.jsx).
+//
+// Les données de chaque hook sont regroupées dans contexteRoutes
+// et transmises aux pages via Layout → Outlet, pour éviter de
+// répéter les mêmes props sur chaque <Route>.
+
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
 import AuthForm from "./components/AuthForm.jsx"
-import CompteForm from "./components/CompteForm.jsx"
-import CompteList from "./components/CompteList.jsx"
-import CategorieForm from "./components/CategorieForm.jsx"
-import CategorieList from "./components/CategorieList.jsx"
-import BudgetForm from "./components/BudgetForm.jsx"
-import BudgetList from "./components/BudgetList.jsx"
-import TransactionForm from "./components/TransactionForm.jsx"
-import TransactionList from "./components/TransactionList.jsx"
+import Layout from "./components/Layout.jsx"
+
+import PageDashboard from "./pages/PageDashboard.jsx"
+import PageTransactions from "./pages/PageTransactions.jsx"
+import PageComptes from "./pages/PageComptes.jsx"
+import PageCategories from "./pages/PageCategories.jsx"
+import PageBudgets from "./pages/PageBudgets.jsx"
+import PageObjectifs from "./pages/PageObjectifs.jsx"
+import PageInvestissements from "./pages/PageInvestissements.jsx"
 
 import { useAuth } from "./hooks/useAuth.js"
 import { useComptes } from "./hooks/useComptes.js"
@@ -33,119 +43,62 @@ function App() {
     gererDeconnexion,
   } = useAuth()
 
-  const {
-    comptes,
-    compteEnModification,
-    setCompteEnModification,
-    gererCreationCompte,
-    gererModificationCompte,
-    gererSuppressionCompte,
-  } = useComptes(utilisateur, setMessage)
+  const comptesData = useComptes(utilisateur, setMessage)
+  const categoriesData = useCategories(utilisateur, setMessage)
+  const budgetsData = useBudgets(utilisateur, setMessage)
+  const transactionsData = useTransactions(utilisateur, setMessage)
 
-  const {
-    categories,
-    categorieEnModification,
-    setCategorieEnModification,
-    gererCreationCategorie,
-    gererModificationCategorie,
-    gererSuppressionCategorie,
-  } = useCategories(utilisateur, setMessage)
+  // Non connecté : ni sidebar, ni routing, juste le formulaire.
+  if (!utilisateur) {
+    return (
+      <main className="page-connexion">
+        <div className="page-connexion__marque">
+          <span className="page-connexion__logo">FP</span>
+          <h1>FinancePilot</h1>
+          <p>Gérez vos finances simplement.</p>
+        </div>
 
-  const {
-    budgets,
-    gererCreationBudget,
-    gererModificationBudget,
-    gererSuppressionBudget,
-  } = useBudgets(utilisateur, setMessage)
+        <AuthForm onConnexion={gererConnexion} onInscription={gererInscription} />
 
-  const {
-    transactions,
-    transactionEnModification,
-    setTransactionEnModification,
-    gererCreationTransaction,
-    gererModificationTransaction,
-    gererSuppressionTransaction,
-  } = useTransactions(utilisateur, setMessage)
+        {message && <p className="page-connexion__message">{message}</p>}
+      </main>
+    )
+  }
+
+  // Regroupe tout ce dont les pages ont besoin, transmis via Outlet.
+  const contexteRoutes = {
+    ...comptesData,
+    ...categoriesData,
+    ...budgetsData,
+    ...transactionsData,
+    message,
+  }
 
   return (
-    <main>
-      <h1>FinancePilot</h1>
-      <p>Gérez vos finances simplement.</p>
-
-      <section>
-        {!utilisateur && (
-          <AuthForm onConnexion={gererConnexion} onInscription={gererInscription} />
-        )}
-
-        {message && <p>{message}</p>}
-
-        {utilisateur && (
-          <div>
-            <h2>Utilisateur connecté</h2>
-            <p>Email : {utilisateur.email}</p>
-
-            <h2>Créer un compte bancaire</h2>
-            <CompteForm onCreation={gererCreationCompte} />
-
-            <h2>Mes comptes</h2>
-            <CompteList
-              comptes={comptes}
-              compteEnModification={compteEnModification}
-              onDemarrerModification={setCompteEnModification}
-              onModification={gererModificationCompte}
-              onAnnulation={() => setCompteEnModification(null)}
-              onSuppression={gererSuppressionCompte}
+    <BrowserRouter>
+      <Routes>
+        <Route
+          element={
+            <Layout
+              utilisateur={utilisateur}
+              onDeconnexion={gererDeconnexion}
+              contexteRoutes={contexteRoutes}
             />
+          }
+        >
+          <Route path="/" element={<PageDashboard />} />
+          <Route path="/transactions" element={<PageTransactions />} />
+          <Route path="/comptes" element={<PageComptes />} />
+          <Route path="/categories" element={<PageCategories />} />
+          <Route path="/budgets" element={<PageBudgets />} />
+          <Route path="/objectifs" element={<PageObjectifs />} />
+          <Route path="/investissements" element={<PageInvestissements />} />
+        </Route>
 
-            <h2>Créer une catégorie</h2>
-            <CategorieForm onCreation={gererCreationCategorie} />
-
-            <h2>Mes catégories</h2>
-            <CategorieList
-              categories={categories}
-              categorieEnModification={categorieEnModification}
-              onDemarrerModification={setCategorieEnModification}
-              onModification={gererModificationCategorie}
-              onAnnulation={() => setCategorieEnModification(null)}
-              onSuppression={gererSuppressionCategorie}
-            />
-
-            <h2>Créer un budget</h2>
-            <BudgetForm categories={categories} onCreation={gererCreationBudget} />
-
-            <BudgetList
-              budgets={budgets}
-              categories={categories}
-              onModification={gererModificationBudget}
-              onSuppression={gererSuppressionBudget}
-            />
-
-            <h2>Créer une transaction</h2>
-            <TransactionForm
-              comptes={comptes}
-              categories={categories}
-              onCreation={gererCreationTransaction}
-            />
-
-            <h2>Mes transactions</h2>
-            <TransactionList
-              transactions={transactions}
-              comptes={comptes}
-              categories={categories}
-              transactionEnModification={transactionEnModification}
-              onDemarrerModification={setTransactionEnModification}
-              onModification={gererModificationTransaction}
-              onAnnulation={() => setTransactionEnModification(null)}
-              onSuppression={gererSuppressionTransaction}
-            />
-
-            <button type="button" onClick={gererDeconnexion}>
-              Se déconnecter
-            </button>
-          </div>
-        )}
-      </section>
-    </main>
+        {/* Toute route inconnue ramène au tableau de bord. */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 
