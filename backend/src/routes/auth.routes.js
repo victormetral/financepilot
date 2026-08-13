@@ -1,55 +1,33 @@
 /*
-  ROUTES D’AUTHENTIFICATION
+  ROUTES D'AUTHENTIFICATION
 
-  Rôle :
-  associer les URL d’authentification
-  aux fonctions du contrôleur.
+  Rôle : associer les URL d'authentification aux fonctions
+  du contrôleur.
 
-  Utilisé par :
-  - app.js
+  Utilisé par : app.js
+  Contrôleur utilisé : auth.controller.js
 
-  Contrôleur utilisé :
-  - auth.controller.js
-
-  Route finale :
+  Routes finales :
   - POST /api/auth/connexion
+  - POST /api/auth/deconnexion
 
-  Ce fichier ne doit pas :
-  - valider directement les données ;
-  - interroger PostgreSQL ;
-  - comparer les mots de passe ;
-  - créer les JWT.
+  Ce fichier ne doit pas : valider les données, interroger
+  PostgreSQL, comparer les mots de passe, créer les JWT.
 */
 
-// 🟨 NOUVEAU
 import express from "express"
 
-// 🟨 NOUVEAU
 import {
   connecterUtilisateur,
+  deconnecterUtilisateur,
 } from "../controllers/auth.controller.js"
 
-/*
-  express.Router() crée un mini-routeur
-  consacré aux routes d’authentification.
-*/
-// 🟨 NOUVEAU
 const router = express.Router()
 
-/*
-  POST /connexion
+router.post("/connexion", connecterUtilisateur)
 
-  L’adresse complète deviendra :
-  POST /api/auth/connexion
+// Le cookie JWT étant httpOnly, seul le serveur peut l'effacer :
+// le frontend ne peut pas le supprimer lui-même en JavaScript.
+router.post("/deconnexion", deconnecterUtilisateur)
 
-  Le préfixe /api/auth sera ajouté
-  dans app.js à l’étape suivante.
-*/
-// 🟨 NOUVEAU
-router.post(
-  "/connexion",
-  connecterUtilisateur
-)
-
-// 🟨 NOUVEAU
 export default router

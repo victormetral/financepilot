@@ -18,8 +18,15 @@
 #
 # Convention :
 # chaque script définit ses propres variables globales
-# (API_URL, RESPONSE_FILE, TOKEN...) avant de sourcer ce
-# fichier ou juste après, selon ses besoins. 
+# (API_URL, RESPONSE_FILE, COOKIE_JAR...) avant de sourcer ce
+# fichier ou juste après, selon ses besoins.
+#
+# Depuis Lot 5 : l'authentification passe par un cookie httpOnly
+# et non plus par un token dans le JSON. requete_http utilise
+# donc un fichier "cookie jar" curl (-c écrit les cookies reçus,
+# -b les renvoie) au lieu d'un header Authorization. Chaque
+# script doit définir COOKIE_JAR avant le premier appel et le
+# supprimer dans son nettoyage final.
 # ============================================================
 
 # Affiche un titre homogène pour chaque étape du test.
@@ -51,21 +58,24 @@ verifier_code_http() {
 }
 
 # Envoie une requête API, sauvegarde sa réponse JSON et renvoie
-# son code HTTP. Le JWT est ajouté automatiquement dès que la
-# variable globale TOKEN contient une valeur.
-# Nécessite RESPONSE_FILE défini par le script appelant.
+# son code HTTP. Le cookie de session est lu et écrit
+# automatiquement via COOKIE_JAR.
+# Nécessite RESPONSE_FILE et COOKIE_JAR définis par le script appelant.
 requete_http() {
   local methode="$1"
   local url="$2"
   local donnees="${3:-}"
-  local options_curl=(-sS -o "$RESPONSE_FILE" -w "%{http_code}" -X "$methode")
+  local options_curl=(
+    -sS
+    -o "$RESPONSE_FILE"
+    -w "%{http_code}"
+    -X "$methode"
+    -c "$COOKIE_JAR"
+    -b "$COOKIE_JAR"
+  )
 
   if [ -n "$donnees" ]; then
     options_curl+=(-H "Content-Type: application/json" -d "$donnees")
-  fi
-
-  if [ -n "$TOKEN" ]; then
-    options_curl+=(-H "Authorization: Bearer $TOKEN")
   fi
 
   curl "${options_curl[@]}" "$url"
@@ -104,4 +114,35 @@ verifier_json() {
   fi
 
   echo "✅ $nom_test"
+}
+
+# ------------------------------------------------------------
+# GESTION DE PLUSIEURS SESSIONS SIMULTANÉES
+# ------------------------------------------------------------
+# Les tests d'autorisation font dialoguer deux utilisateurs.
+# Avec l'ancien système on changeait la variable TOKEN ; avec
+# des cookies, chaque utilisateur a son propre fichier de
+# cookies et l'on bascule COOKIE_JAR de l'un à l'autre.
+
+# Ouvre une session dans un cookie jar dédié.
+# Exemple : ouvrir_session_pour "$JAR_1" "$EMAIL_1" "$MOT_DE_PASSE" "Connexion du propriétaire"
+ouvrir_session_pour() {
+  local fichier_cookies="$1"
+  local email="$2"
+  local mot_de_passe="$3"
+  local nom_test="$4"
+  local code_http
+
+  COOKIE_JAR="$fichier_cookies"
+
+  code_http=$(requete_http "POST" "$API_URL/auth/connexion" "{
+    \"email\": \"$email\", \"mot_de_passe\": \"$mot_de_passe\"
+  }")
+
+  verifier_code_http "$code_http" "200" "$nom_test"
+}
+
+# Bascule les requêtes suivantes vers une autre session.
+utiliser_session() {
+  COOKIE_JAR="$1"
 }

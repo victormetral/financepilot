@@ -1,42 +1,30 @@
 #!/usr/bin/env bash
 
 # ============================================================
-# TESTS COMPLETS DE L'AUTHENTIFICATION JWT
+# TESTS COMPLETS DE L'AUTHENTIFICATION
 # ============================================================
 #
-# Rôle :
-# tester automatiquement la route :
-# POST /api/auth/connexion
-#
-# Tests effectués :
-# 1. création d'un utilisateur temporaire ;
-# 2. connexion avec les bons identifiants ;
-# 3. vérification de la présence du JWT ;
-# 4. vérification de la structure du JWT ;
-# 5. vérification de l'absence du mot de passe ;
-# 6. normalisation de l'adresse email ;
-# 7. refus d'un mauvais mot de passe ;
-# 8. refus d'un email inconnu ;
-# 9. refus des champs manquants ;
-# 10. refus d'un email invalide ;
-# 11. refus d'un mot de passe trop court ;
-# 12. suppression de l'utilisateur temporaire.
+# Rôle : tester les routes
+# - POST /api/auth/connexion
+# - POST /api/auth/deconnexion
 #
 # Utilise :
-# - scripts/lib/test-helpers.sh (afficher_etape, requete_http,
-#   verifier_code_http, verifier_json — mutualisé)
+# - scripts/lib/test-helpers.sh (mutualisé)
 #
-# Prérequis :
-# - le backend fonctionne sur localhost:3000 ;
-# - PostgreSQL est démarré ;
-# - curl et jq sont installés.
+# Depuis Lot 5 : le JWT n'est plus renvoyé dans le JSON mais
+# posé en cookie httpOnly. Les tests vérifient donc la présence
+# du cookie dans COOKIE_JAR et son effacement à la déconnexion,
+# au lieu d'inspecter un champ .token.
+#
+# Prérequis : backend sur localhost:3000, PostgreSQL démarré,
+# curl et jq installés.
 # ============================================================
 
 set -e
 
 API_URL="http://localhost:3000/api"
 RESPONSE_FILE="/tmp/reponse-auth-financepilot.json"
-TOKEN=""
+COOKIE_JAR="/tmp/cookies-auth-financepilot.txt"
 
 TIMESTAMP=$(date +%s)
 EMAIL_TEST="jwt-${TIMESTAMP}@financepilot.test"
@@ -46,65 +34,72 @@ MAUVAIS_MOT_DE_PASSE="MauvaisMotDePasse123!"
 
 UTILISATEUR_ID=""
 
-# Fonctions communes mutualisées.
 source "$(dirname "$0")/lib/test-helpers.sh"
 
-# Nettoyage automatique : si un test échoue après la création
-# de l'utilisateur, cette fonction essaie quand même de le
-# supprimer.
-nettoyer_en_cas_erreur() {
-  if [ -n "$UTILISATEUR_ID" ]; then
-    curl -sS -o /dev/null -X DELETE \
-      "$API_URL/utilisateurs/$UTILISATEUR_ID" || true
+# Vérifie la présence (ou l'absence) du cookie de session dans
+# le cookie jar. C'est le remplaçant direct de l'ancienne
+# vérification du champ .token dans le JSON.
+verifier_cookie_session() {
+  local presence_attendue="$1"
+  local nom_test="$2"
+
+  if grep -q $'\ttoken\t' "$COOKIE_JAR" 2>/dev/null; then
+    presence_reelle="present"
+  else
+    presence_reelle="absent"
   fi
 
-  rm -f "$RESPONSE_FILE"
+  if [ "$presence_reelle" != "$presence_attendue" ]; then
+    echo "❌ ÉCHEC : $nom_test"
+    echo "Cookie attendu : $presence_attendue"
+    echo "Cookie constaté : $presence_reelle"
+    exit 1
+  fi
+
+  echo "✅ $nom_test"
 }
 
-trap nettoyer_en_cas_erreur EXIT
+# Si un test échoue après la création de l'utilisateur, on
+# essaie quand même de le supprimer.
+nettoyer() {
+  if [ -n "$UTILISATEUR_ID" ]; then
+    requete_http "DELETE" "$API_URL/utilisateurs/$UTILISATEUR_ID" >/dev/null || true
+  fi
+
+  rm -f "$RESPONSE_FILE" "$COOKIE_JAR"
+}
+
+trap nettoyer EXIT
 
 # ============================================================
-# VÉRIFICATION DES PRÉREQUIS
+# PRÉREQUIS
 # ============================================================
 
 afficher_etape "VÉRIFICATION DES PRÉREQUIS"
 
-if ! command -v curl >/dev/null 2>&1; then
-  echo "❌ curl n'est pas installé."
-  exit 1
-fi
-
-if ! command -v jq >/dev/null 2>&1; then
-  echo "❌ jq n'est pas installé."
-  echo "Installation : brew install jq"
-  exit 1
-fi
+for outil in curl jq; do
+  if ! command -v "$outil" >/dev/null 2>&1; then
+    echo "❌ $outil n'est pas installé."
+    exit 1
+  fi
+done
 
 CODE_HTTP=$(requete_http "GET" "http://localhost:3000/")
 verifier_code_http "$CODE_HTTP" "200" "Backend accessible"
 
 # ============================================================
-# 1. CRÉATION DE L'UTILISATEUR TEMPORAIRE
+# 1. CRÉATION DE L'UTILISATEUR DE TEST
 # ============================================================
 
 afficher_etape "1. CRÉATION DE L'UTILISATEUR DE TEST"
 
 CODE_HTTP=$(requete_http "POST" "$API_URL/utilisateurs" "{
-  \"nom\": \"JWT\",
-  \"prenom\": \"Test\",
-  \"email\": \"$EMAIL_TEST\",
-  \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
+  \"nom\": \"JWT\", \"prenom\": \"Test\",
+  \"email\": \"$EMAIL_TEST\", \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
 }")
 verifier_code_http "$CODE_HTTP" "201" "Création utilisateur"
 
-UTILISATEUR_ID=$(jq -r '.id' "$RESPONSE_FILE")
-
-if [ -z "$UTILISATEUR_ID" ] || [ "$UTILISATEUR_ID" = "null" ]; then
-  echo "❌ L'identifiant de l'utilisateur est absent."
-  cat "$RESPONSE_FILE"
-  exit 1
-fi
-
+UTILISATEUR_ID=$(recuperer_identifiant "l'utilisateur")
 echo "Utilisateur temporaire créé : $UTILISATEUR_ID"
 
 verifier_json 'has("mot_de_passe") | not' "Le mot de passe est absent de la création"
@@ -116,29 +111,21 @@ verifier_json 'has("mot_de_passe") | not' "Le mot de passe est absent de la cré
 afficher_etape "2. CONNEXION AVEC LES BONS IDENTIFIANTS"
 
 CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
-  \"email\": \"$EMAIL_TEST\",
-  \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
+  \"email\": \"$EMAIL_TEST\", \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
 }")
 verifier_code_http "$CODE_HTTP" "200" "Connexion réussie"
 
 verifier_json '.message == "Connexion réussie"' "Le message de confirmation est correct"
-verifier_json '.token | type == "string" and length > 0' "Un JWT est présent"
 
-TOKEN=$(jq -r '.token' "$RESPONSE_FILE")
+# Le JWT ne doit plus circuler dans le corps de la réponse.
+verifier_json 'has("token") | not' "Aucun JWT n'est exposé dans le JSON"
+verifier_cookie_session "present" "Le cookie de session est posé"
 
-NOMBRE_PARTIES_JWT=$(printf '%s' "$TOKEN" | awk -F'.' '{ print NF }')
-
-if [ "$NOMBRE_PARTIES_JWT" != "3" ]; then
-  echo "❌ Le JWT ne contient pas trois parties."
-  exit 1
-fi
-
-echo "✅ Le JWT contient trois parties"
+verifier_json '.utilisateur.id != null' "L'utilisateur est présent dans la réponse"
 
 if ! jq -e --argjson utilisateur_id "$UTILISATEUR_ID" \
-  '.utilisateur.id == $utilisateur_id' \
-  "$RESPONSE_FILE" >/dev/null; then
-  echo "❌ L'utilisateur du JWT est incorrect."
+  '.utilisateur.id == $utilisateur_id' "$RESPONSE_FILE" >/dev/null; then
+  echo "❌ L'identifiant utilisateur renvoyé est incorrect."
   cat "$RESPONSE_FILE"
   exit 1
 fi
@@ -150,114 +137,111 @@ verifier_json \
   "Aucun mot de passe n'est renvoyé"
 
 # ============================================================
-# 3. NORMALISATION DE L'EMAIL
+# 3. ACCÈS À UNE ROUTE PROTÉGÉE AVEC LE COOKIE
 # ============================================================
 
-afficher_etape "3. NORMALISATION DE L'EMAIL"
+afficher_etape "3. ACCÈS PROTÉGÉ AVEC LE COOKIE"
+
+CODE_HTTP=$(requete_http "GET" "$API_URL/utilisateurs/$UTILISATEUR_ID")
+verifier_code_http "$CODE_HTTP" "200" "Le cookie donne accès aux routes protégées"
+
+# ============================================================
+# 4. NORMALISATION DE L'EMAIL
+# ============================================================
+
+afficher_etape "4. NORMALISATION DE L'EMAIL"
 
 EMAIL_MAJUSCULES=$(printf '%s' "$EMAIL_TEST" | tr '[:lower:]' '[:upper:]')
 
 CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
-  \"email\": \"  $EMAIL_MAJUSCULES  \",
-  \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
+  \"email\": \"  $EMAIL_MAJUSCULES  \", \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
 }")
 verifier_code_http "$CODE_HTTP" "200" "Email nettoyé et converti en minuscules"
 
 # ============================================================
-# 4. MAUVAIS MOT DE PASSE
+# 5. IDENTIFIANTS REFUSÉS
 # ============================================================
 
-afficher_etape "4. REFUS D'UN MAUVAIS MOT DE PASSE"
+afficher_etape "5. REFUS D'UN MAUVAIS MOT DE PASSE"
 
 CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
-  \"email\": \"$EMAIL_TEST\",
-  \"mot_de_passe\": \"$MAUVAIS_MOT_DE_PASSE\"
+  \"email\": \"$EMAIL_TEST\", \"mot_de_passe\": \"$MAUVAIS_MOT_DE_PASSE\"
 }")
 verifier_code_http "$CODE_HTTP" "401" "Mauvais mot de passe refusé"
-
 verifier_json '.message == "Email ou mot de passe incorrect"' "Le message de sécurité est volontairement imprécis"
 
-# ============================================================
-# 5. EMAIL INCONNU
-# ============================================================
-
-afficher_etape "5. REFUS D'UN EMAIL INCONNU"
+afficher_etape "6. REFUS D'UN EMAIL INCONNU"
 
 CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
-  \"email\": \"$EMAIL_INCONNU\",
-  \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
+  \"email\": \"$EMAIL_INCONNU\", \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
 }")
 verifier_code_http "$CODE_HTTP" "401" "Email inconnu refusé"
-
 verifier_json '.message == "Email ou mot de passe incorrect"' "Email inconnu et mauvais mot de passe ont le même message"
 
 # ============================================================
-# 6. EMAIL MANQUANT
+# 7. VALIDATION DES CHAMPS
 # ============================================================
 
-afficher_etape "6. REFUS D'UN EMAIL MANQUANT"
+afficher_etape "7. VALIDATION DES CHAMPS DE CONNEXION"
 
 CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
   \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
 }")
 verifier_code_http "$CODE_HTTP" "400" "Email manquant refusé"
-
 verifier_json '.message == "email et mot_de_passe sont obligatoires"' "Message des champs obligatoires correct"
-
-# ============================================================
-# 7. MOT DE PASSE MANQUANT
-# ============================================================
-
-afficher_etape "7. REFUS D'UN MOT DE PASSE MANQUANT"
 
 CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
   \"email\": \"$EMAIL_TEST\"
 }")
 verifier_code_http "$CODE_HTTP" "400" "Mot de passe manquant refusé"
 
-verifier_json '.message == "email et mot_de_passe sont obligatoires"' "Message des champs obligatoires correct"
-
-# ============================================================
-# 8. EMAIL INVALIDE
-# ============================================================
-
-afficher_etape "8. REFUS D'UN EMAIL INVALIDE"
-
 CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
-  \"email\": \"email-invalide\",
-  \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
+  \"email\": \"email-invalide\", \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
 }")
 verifier_code_http "$CODE_HTTP" "400" "Email invalide refusé"
-
 verifier_json '.message == "email doit avoir un format valide"' "Message de validation de l'email correct"
 
-# ============================================================
-# 9. MOT DE PASSE TROP COURT
-# ============================================================
-
-afficher_etape "9. REFUS D'UN MOT DE PASSE TROP COURT"
-
 CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
-  \"email\": \"$EMAIL_TEST\",
-  \"mot_de_passe\": \"court\"
+  \"email\": \"$EMAIL_TEST\", \"mot_de_passe\": \"court\"
 }")
 verifier_code_http "$CODE_HTTP" "400" "Mot de passe trop court refusé"
-
 verifier_json '.message == "mot_de_passe doit contenir au moins 8 caractères"' "Message de validation du mot de passe correct"
 
 # ============================================================
-# 10. SUPPRESSION DE L'UTILISATEUR TEMPORAIRE
+# 8. DÉCONNEXION
 # ============================================================
 
-afficher_etape "10. SUPPRESSION DES DONNÉES DE TEST"
+afficher_etape "8. DÉCONNEXION"
+
+# Une connexion valide est nécessaire : les tests précédents
+# ont échoué volontairement et n'ont pas renouvelé le cookie.
+CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
+  \"email\": \"$EMAIL_TEST\", \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
+}")
+verifier_code_http "$CODE_HTTP" "200" "Reconnexion avant déconnexion"
+
+CODE_HTTP=$(requete_http "POST" "$API_URL/auth/deconnexion")
+verifier_code_http "$CODE_HTTP" "200" "Déconnexion réussie"
+verifier_json '.message == "Déconnexion réussie"' "Message de déconnexion correct"
+
+CODE_HTTP=$(requete_http "GET" "$API_URL/utilisateurs/$UTILISATEUR_ID")
+verifier_code_http "$CODE_HTTP" "401" "Les routes protégées sont de nouveau refusées"
+
+# ============================================================
+# 9. SUPPRESSION DE L'UTILISATEUR TEMPORAIRE
+# ============================================================
+
+afficher_etape "9. SUPPRESSION DES DONNÉES DE TEST"
+
+CODE_HTTP=$(requete_http "POST" "$API_URL/auth/connexion" "{
+  \"email\": \"$EMAIL_TEST\", \"mot_de_passe\": \"$MOT_DE_PASSE_TEST\"
+}")
+verifier_code_http "$CODE_HTTP" "200" "Reconnexion pour le nettoyage"
 
 CODE_HTTP=$(requete_http "DELETE" "$API_URL/utilisateurs/$UTILISATEUR_ID")
 verifier_code_http "$CODE_HTTP" "200" "Suppression utilisateur temporaire"
 
-# L'utilisateur est déjà supprimé :
-# le nettoyage automatique ne doit pas recommencer.
+# Déjà supprimé : le nettoyage automatique ne doit pas recommencer.
 UTILISATEUR_ID=""
 
-rm -f "$RESPONSE_FILE"
-
-afficher_etape "✅ TOUS LES TESTS JWT FONCTIONNENT"
+afficher_etape "✅ TOUS LES TESTS D'AUTHENTIFICATION FONCTIONNENT"

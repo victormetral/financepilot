@@ -1,5 +1,12 @@
 import { API_URL } from "../config/api.js"
 
+// ============================================================
+// SERVICE DES CATÉGORIES
+// ============================================================
+//
+// Depuis Lot 5 : `credentials: "include"` remplace le header
+// Authorization — le cookie httpOnly part automatiquement.
+
 async function lireReponse(reponse) {
   const donnees = await reponse.json()
 
@@ -9,70 +16,41 @@ async function lireReponse(reponse) {
   }
 }
 
-function creerHeaders(token, avecJson = false) {
-  const headers = {
-    Authorization: `Bearer ${token}`,
-  }
-
-  if (avecJson) {
-    headers["Content-Type"] = "application/json"
-  }
-
-  return headers
-}
-
-export async function recupererCategories(token) {
+export async function recupererCategories() {
   const reponse = await fetch(`${API_URL}/categories`, {
-    headers: creerHeaders(token),
+    credentials: "include",
   })
 
   return lireReponse(reponse)
 }
 
-export async function creerCategorie(
-  { nom, typeCategorie },
-  token
-) {
+export async function creerCategorie({ nom, typeCategorie }) {
   const reponse = await fetch(`${API_URL}/categories`, {
     method: "POST",
-    headers: creerHeaders(token, true),
-    body: JSON.stringify({
-      nom,
-      type_categorie: typeCategorie,
-    }),
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nom, type_categorie: typeCategorie }),
   })
 
   return lireReponse(reponse)
 }
 
-export async function modifierCategorie(
-  categorieId,
-  { nom, typeCategorie },
-  token
-) {
-  const reponse = await fetch(
-    `${API_URL}/categories/${categorieId}`,
-    {
-      method: "PUT",
-      headers: creerHeaders(token, true),
-      body: JSON.stringify({
-        nom,
-        type_categorie: typeCategorie,
-      }),
-    }
-  )
+export async function modifierCategorie(categorieId, { nom, typeCategorie }) {
+  const reponse = await fetch(`${API_URL}/categories/${categorieId}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nom, type_categorie: typeCategorie }),
+  })
 
   return lireReponse(reponse)
 }
 
-export async function supprimerCategorie(categorieId, token) {
-  const reponse = await fetch(
-    `${API_URL}/categories/${categorieId}`,
-    {
-      method: "DELETE",
-      headers: creerHeaders(token),
-    }
-  )
+export async function supprimerCategorie(categorieId) {
+  const reponse = await fetch(`${API_URL}/categories/${categorieId}`, {
+    method: "DELETE",
+    credentials: "include",
+  })
 
   return lireReponse(reponse)
 }

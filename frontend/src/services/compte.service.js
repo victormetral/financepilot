@@ -1,5 +1,12 @@
 import { API_URL } from "../config/api.js"
 
+// ============================================================
+// SERVICE DES COMPTES
+// ============================================================
+//
+// Depuis Lot 5 : `credentials: "include"` remplace le header
+// Authorization — le cookie httpOnly part automatiquement.
+
 async function lireReponse(reponse) {
   const donnees = await reponse.json()
 
@@ -9,37 +16,22 @@ async function lireReponse(reponse) {
   }
 }
 
-function creerHeaders(token, avecJson = false) {
-  const headers = {
-    Authorization: `Bearer ${token}`,
-  }
-
-  if (avecJson) {
-    headers["Content-Type"] = "application/json"
-  }
-
-  return headers
-}
-
-export async function recupererComptes(token) {
+export async function recupererComptes() {
   const reponse = await fetch(`${API_URL}/comptes`, {
-    headers: creerHeaders(token),
+    credentials: "include",
   })
 
   return lireReponse(reponse)
 }
 
-export async function creerCompte(
-  { nom, typeCompte, sousTypeCompte },
-  token
-) {
+export async function creerCompte({ nom, typeCompte, sousTypeCompte }) {
   const reponse = await fetch(`${API_URL}/comptes`, {
     method: "POST",
-    headers: creerHeaders(token, true),
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       nom,
       type_compte: typeCompte,
-      // 🟨 CORRIGÉ : champ exigé par le validateur backend.
       sous_type_compte: sousTypeCompte,
     }),
   })
@@ -49,42 +41,29 @@ export async function creerCompte(
 
 export async function modifierCompte(
   compteId,
-  {
-    nom,
-    typeCompte,
-    sousTypeCompte,
-    soldeInitial,
-    devise,
-  },
-  token
+  { nom, typeCompte, sousTypeCompte, soldeInitial, devise }
 ) {
-  const reponse = await fetch(
-    `${API_URL}/comptes/${compteId}`,
-    {
-      method: "PUT",
-      headers: creerHeaders(token, true),
-      body: JSON.stringify({
-        nom,
-        type_compte: typeCompte,
-        // 🟨 CORRIGÉ : PUT exige aussi ce champ.
-        sous_type_compte: sousTypeCompte,
-        solde_initial: Number(soldeInitial),
-        devise,
-      }),
-    }
-  )
+  const reponse = await fetch(`${API_URL}/comptes/${compteId}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      nom,
+      type_compte: typeCompte,
+      sous_type_compte: sousTypeCompte,
+      solde_initial: Number(soldeInitial),
+      devise,
+    }),
+  })
 
   return lireReponse(reponse)
 }
 
-export async function supprimerCompte(compteId, token) {
-  const reponse = await fetch(
-    `${API_URL}/comptes/${compteId}`,
-    {
-      method: "DELETE",
-      headers: creerHeaders(token),
-    }
-  )
+export async function supprimerCompte(compteId) {
+  const reponse = await fetch(`${API_URL}/comptes/${compteId}`, {
+    method: "DELETE",
+    credentials: "include",
+  })
 
   return lireReponse(reponse)
 }

@@ -2,10 +2,8 @@
 // HOOK DES BUDGETS
 // ============================================================
 //
-// Rôle : charger, créer, modifier et supprimer les budgets de
-// l'utilisateur connecté. La liste est rechargée après chaque
-// création/modification pour récupérer nom_categorie (jointure
-// faite côté backend).
+// Depuis Lot 5 : plus de vérification de token en local, le
+// cookie httpOnly gère l'authentification.
 //
 // Utilisé par : App.jsx
 
@@ -23,15 +21,13 @@ export function useBudgets(utilisateur, setMessage) {
 
   useEffect(() => {
     async function chargerBudgets() {
-      const token = localStorage.getItem("token")
-
-      if (!utilisateur || !token) {
+      if (!utilisateur) {
         setBudgets([])
         return
       }
 
       try {
-        const resultat = await recupererBudgets(token)
+        const resultat = await recupererBudgets()
 
         if (resultat.ok) {
           setBudgets(resultat.donnees.budgets)
@@ -49,79 +45,54 @@ export function useBudgets(utilisateur, setMessage) {
   }, [utilisateur, setMessage])
 
   async function gererCreationBudget(donneesFormulaire) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return false
-    }
-
     try {
-      const resultat = await creerBudget(donneesFormulaire, token)
+      const resultat = await creerBudget(donneesFormulaire)
 
       if (!resultat.ok) {
         setMessage(resultat.donnees.message)
         return false
       }
 
-      const resultatListe = await recupererBudgets(token)
+      const resultatListe = await recupererBudgets()
 
       if (resultatListe.ok) {
         setBudgets(resultatListe.donnees.budgets)
       }
 
       setMessage("Budget créé.")
-
       return true
     } catch {
       setMessage("Impossible de créer le budget.")
-
       return false
     }
   }
 
   async function gererModificationBudget(budgetId, donneesFormulaire) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return false
-    }
-
     try {
-      const resultat = await modifierBudget(budgetId, donneesFormulaire, token)
+      const resultat = await modifierBudget(budgetId, donneesFormulaire)
 
       if (!resultat.ok) {
         setMessage(resultat.donnees.message)
         return false
       }
 
-      const resultatListe = await recupererBudgets(token)
+      const resultatListe = await recupererBudgets()
 
       if (resultatListe.ok) {
         setBudgets(resultatListe.donnees.budgets)
       }
 
       setMessage("Budget modifié avec succès.")
-
       return true
     } catch {
       setMessage("Impossible de modifier le budget.")
-
       return false
     }
   }
 
   async function gererSuppressionBudget(budgetId) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return
-    }
-
     try {
-      const resultat = await supprimerBudget(budgetId, token)
+      const resultat = await supprimerBudget(budgetId)
 
       if (resultat.ok) {
         setBudgets((budgetsActuels) =>

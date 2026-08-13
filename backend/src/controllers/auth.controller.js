@@ -1,49 +1,48 @@
 /*
   CONTRÔLEUR D'AUTHENTIFICATION
 
-  Rôle général :
-  connecter un utilisateur avec son email
-  et son mot de passe.
+  Rôle :
+  connecter et déconnecter un utilisateur. Depuis Lot 5, le JWT
+  est posé comme cookie httpOnly plutôt que renvoyé dans le JSON
+  — invisible pour JavaScript, donc protégé contre le vol par XSS.
 
   Utilisé par :
   - auth.routes.js
 
-  Utilise :
-  - utilisateur.service.js (findUtilisateurByEmail)
-  - auth.validator.js (validerConnexion)
-
-  Route concernée :
+  Routes concernées :
   - POST /api/auth/connexion
+  - POST /api/auth/deconnexion
 
   Règles de sécurité :
   - ne jamais renvoyer mot_de_passe ;
   - ne jamais placer mot_de_passe dans le JWT ;
   - utiliser le même message pour un email inconnu
     et un mot de passe incorrect ;
-  - inclure le role dans le JWT (🟨 NOUVEAU) pour que
-    verifierAdministrateur puisse le lire sans requête
-    SQL supplémentaire.
+  - le cookie JWT est httpOnly (inaccessible en JS).
 */
 
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 
-import {
-  findUtilisateurByEmail,
-} from "../services/utilisateur.service.js"
+import { findUtilisateurByEmail } from "../services/utilisateur.service.js"
+import { validerConnexion } from "../validators/auth.validator.js"
 
-import {
-  validerConnexion,
-} from "../validators/auth.validator.js"
-
-// Durée de validité du jeton.
 const DUREE_JETON = "1h"
+const NOM_COOKIE = "token"
 
-// Connecte un utilisateur et renvoie un JWT.
-export const connecterUtilisateur = async (
-  request,
-  response
-) => {
+/*
+  Options du cookie JWT, réutilisées à la connexion et à la
+  déconnexion (clearCookie doit recevoir les mêmes options que
+  set pour fonctionner correctement dans tous les navigateurs).
+*/
+const optionsCookie = {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+  maxAge: 60 * 60 * 1000, // 1h, cohérent avec DUREE_JETON
+}
+
+export const connecterUtilisateur = async (request, response) => {
   try {
     const validation = validerConnexion(request.body)
 
@@ -51,14 +50,13 @@ export const connecterUtilisateur = async (
       return response.status(400).json({
         message: validation.message,
       })
-    } 
+    }
 
     const { email, mot_de_passe } = validation.donnees
 
     const utilisateur = await findUtilisateurByEmail(email)
 
-    // Message volontairement imprécis : empêche un
-    // attaquant de savoir si l'email existe en base.
+    // Message volontairement imprécis : empêche de deviner si l'email existe.
     if (!utilisateur) {
       return response.status(401).json({
         message: "Email ou mot de passe incorrect",
@@ -80,12 +78,6 @@ export const connecterUtilisateur = async (
       throw new Error("La variable JWT_SECRET est absente")
     }
 
-    /*
-      🟨 NOUVEAU
-      Le JWT contient désormais aussi le role, pour que
-      verifierAdministrateur (auth.middleware.js) puisse
-      protéger certaines routes sans requête SQL.
-    */
     const token = jwt.sign(
       {
         utilisateurId: utilisateur.id,
@@ -96,15 +88,15 @@ export const connecterUtilisateur = async (
       { expiresIn: DUREE_JETON }
     )
 
+    response.cookie(NOM_COOKIE, token, optionsCookie)
+
     return response.status(200).json({
       message: "Connexion réussie",
-      token,
       utilisateur: {
         id: utilisateur.id,
         nom: utilisateur.nom,
         prenom: utilisateur.prenom,
         email: utilisateur.email,
-        role: utilisateur.role,
         date_creation: utilisateur.date_creation,
       },
     })
@@ -115,4 +107,12 @@ export const connecterUtilisateur = async (
       message: "Erreur interne lors de la connexion",
     })
   }
+}
+
+export const deconnecterUtilisateur = (request, response) => {
+  response.clearCookie(NOM_COOKIE, optionsCookie)
+
+  response.status(200).json({
+    message: "Déconnexion réussie",
+  })
 }

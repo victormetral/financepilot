@@ -3,71 +3,59 @@
 // ============================================================
 //
 // Rôle : envoyer au backend les requêtes liées à l'utilisateur.
-// Utilisé par : App.jsx.
+// Depuis Lot 5, l'authentification passe par un cookie httpOnly :
+// `credentials: "include"` est nécessaire sur chaque requête pour
+// que le navigateur envoie/reçoive ce cookie.
 //
-// Un service ne gère pas l'affichage React.
-// Il envoie une requête HTTP et renvoie la réponse à App.jsx.
+// Utilisé par : hooks/useAuth.js
 
 import { API_URL } from "../config/api.js"
 
-// 🟨 NOUVEAU : transforme la réponse HTTP en objet utilisable.
 async function lireReponse(reponse) {
   const donnees = await reponse.json()
 
   return {
     ok: reponse.ok,
-    donnees
+    donnees,
   }
 }
 
-export async function connecterUtilisateur(
-  email,
-  motDePasse
-) {
-  const reponse = await fetch(
-    `${API_URL}/auth/connexion`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        email,
-        mot_de_passe: motDePasse
-      })
-    }
-  )
-
-  return lireReponse(reponse)
-}
-
-export async function inscrireUtilisateur({
-  nom,
-  prenom,
-  email,
-  motDePasse
-}) {
-  const reponse = await fetch(`${API_URL}/utilisateurs`, {
+export async function connecterUtilisateur(email, motDePasse) {
+  const reponse = await fetch(`${API_URL}/auth/connexion`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      nom,
-      prenom,
-      email,
-      mot_de_passe: motDePasse
-    })
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, mot_de_passe: motDePasse }),
   })
 
   return lireReponse(reponse)
 }
 
-export async function recupererUtilisateurConnecte(token) {
+export async function inscrireUtilisateur({ nom, prenom, email, motDePasse }) {
   const reponse = await fetch(`${API_URL}/utilisateurs`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nom, prenom, email, mot_de_passe: motDePasse }),
+  })
+
+  return lireReponse(reponse)
+}
+
+// Le cookie part automatiquement avec la requête : plus besoin de token en argument.
+export async function recupererUtilisateurConnecte() {
+  const reponse = await fetch(`${API_URL}/utilisateurs`, {
+    credentials: "include",
+  })
+
+  return lireReponse(reponse)
+}
+
+// Le backend efface le cookie httpOnly : le JS ne peut pas le faire lui-même.
+export async function deconnecterUtilisateur() {
+  const reponse = await fetch(`${API_URL}/auth/deconnexion`, {
+    method: "POST",
+    credentials: "include",
   })
 
   return lireReponse(reponse)

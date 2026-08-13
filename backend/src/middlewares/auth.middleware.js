@@ -1,55 +1,30 @@
 /*
-  MIDDLEWARES D'AUTHENTIFICATION ET D'AUTORISATION
+  MIDDLEWARE D'AUTHENTIFICATION
 
-  Rôle général : 
-  vérifier le JWT avant d'accéder aux routes protégées,
-  et vérifier le rôle avant d'accéder aux routes
-  réservées aux administrateurs.
+  Rôle : vérifier le JWT avant d'accéder aux routes CRUD, et
+  vérifier le rôle administrateur pour les routes qui l'exigent
+  (actif_financier en écriture, Lot 2).
 
-  Utilisé par :
-  - app.js (verifierAuthentification, sur tout /api sauf
-    /api/auth et POST /api/utilisateurs)
-  - actifFinancier.routes.js (verifierAdministrateur, sur
-    POST/PUT/DELETE uniquement — 🟨 NOUVEAU)
+  Depuis Lot 5, le JWT est lu depuis un cookie httpOnly plutôt
+  que depuis le header Authorization.
 
-  Format attendu :
-  Authorization: Bearer <token>
+  Utilisé par : les fichiers du dossier routes/
 */
 
 import jwt from "jsonwebtoken"
 
-// Vérifie que le JWT est présent, bien formé et valide.
-// Rend request.utilisateur disponible aux contrôleurs
-// suivants (utilisateurId, email, role).
-export const verifierAuthentification = (
-  request,
-  response,
-  next
-) => {
-  const autorisation = request.headers.authorization
+export const verifierAuthentification = (request, response, next) => {
+  const token = request.cookies?.token
 
-  if (!autorisation) {
+  if (!token) {
     return response.status(401).json({
       message: "Authentification requise",
     })
   }
 
-  const [type, token] = autorisation.split(" ")
-
-  if (type !== "Bearer" || !token) {
-    return response.status(401).json({
-      message: "Format du jeton invalide",
-    })
-  }
-
   try {
-    const utilisateurDecode = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    )
-
+    const utilisateurDecode = jwt.verify(token, process.env.JWT_SECRET)
     request.utilisateur = utilisateurDecode
-
     next()
   } catch (error) {
     return response.status(401).json({
@@ -58,22 +33,9 @@ export const verifierAuthentification = (
   }
 }
 
-/*
-  🟨 NOUVEAU
-
-  Vérifie que l'utilisateur connecté a le role
-  "administrateur". Doit toujours être placé après
-  verifierAuthentification dans une route, car il lit
-  request.utilisateur.role.
-
-  Utilisé pour protéger la modification du référentiel
-  actif_financier (partagé entre tous les utilisateurs).
-*/
-export const verifierAdministrateur = (
-  request,
-  response,
-  next
-) => {
+// Réservé aux routes en écriture sur actif_financier (Lot 2).
+// Doit être placé après verifierAuthentification dans les routes.
+export const verifierAdministrateur = (request, response, next) => {
   if (request.utilisateur?.role !== "administrateur") {
     return response.status(403).json({
       message: "Accès réservé aux administrateurs",

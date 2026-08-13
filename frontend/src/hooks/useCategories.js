@@ -2,9 +2,8 @@
 // HOOK DES CATÉGORIES
 // ============================================================
 //
-// Rôle : charger, créer, modifier et supprimer les catégories
-// de l'utilisateur connecté. Se recharge/se vide automatiquement
-// quand `utilisateur` change (connexion/déconnexion).
+// Depuis Lot 5 : plus de vérification de token en local, le
+// cookie httpOnly gère l'authentification.
 //
 // Utilisé par : App.jsx
 
@@ -23,15 +22,13 @@ export function useCategories(utilisateur, setMessage) {
 
   useEffect(() => {
     async function chargerCategories() {
-      const token = localStorage.getItem("token")
-
-      if (!utilisateur || !token) {
+      if (!utilisateur) {
         setCategories([])
         return
       }
 
       try {
-        const resultat = await recupererCategories(token)
+        const resultat = await recupererCategories()
 
         if (resultat.ok) {
           setCategories(resultat.donnees)
@@ -49,15 +46,8 @@ export function useCategories(utilisateur, setMessage) {
   }, [utilisateur, setMessage])
 
   async function gererCreationCategorie(donneesFormulaire) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return false
-    }
-
     try {
-      const resultat = await creerCategorie(donneesFormulaire, token)
+      const resultat = await creerCategorie(donneesFormulaire)
 
       if (resultat.ok) {
         setCategories((categoriesActuelles) => [
@@ -66,30 +56,20 @@ export function useCategories(utilisateur, setMessage) {
         ])
 
         setMessage("Catégorie créée.")
-
         return true
       }
 
       setMessage(resultat.donnees.message)
-
       return false
     } catch {
       setMessage("Impossible de créer la catégorie.")
-
       return false
     }
   }
 
   async function gererModificationCategorie(categorieId, donneesFormulaire) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return
-    }
-
     try {
-      const resultat = await modifierCategorie(categorieId, donneesFormulaire, token)
+      const resultat = await modifierCategorie(categorieId, donneesFormulaire)
 
       if (resultat.ok) {
         setCategories((categoriesActuelles) =>
@@ -109,15 +89,8 @@ export function useCategories(utilisateur, setMessage) {
   }
 
   async function gererSuppressionCategorie(categorieId) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return
-    }
-
     try {
-      const resultat = await supprimerCategorie(categorieId, token)
+      const resultat = await supprimerCategorie(categorieId)
 
       if (resultat.ok) {
         setCategories((categoriesActuelles) =>

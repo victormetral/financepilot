@@ -2,10 +2,8 @@
 // HOOK DES TRANSACTIONS
 // ============================================================
 //
-// Rôle : charger, créer, modifier et supprimer les transactions
-// de l'utilisateur connecté. Même pattern que useBudgets.js
-// (rechargement complet après création/modification, pour
-// récupérer nom_compte/nom_categorie via jointure backend).
+// Depuis Lot 5 : plus de vérification de token en local, le
+// cookie httpOnly gère l'authentification.
 //
 // Utilisé par : App.jsx
 
@@ -24,15 +22,13 @@ export function useTransactions(utilisateur, setMessage) {
 
   useEffect(() => {
     async function chargerTransactions() {
-      const token = localStorage.getItem("token")
-
-      if (!utilisateur || !token) {
+      if (!utilisateur) {
         setTransactions([])
         return
       }
 
       try {
-        const resultat = await recupererTransactions(token)
+        const resultat = await recupererTransactions()
 
         if (resultat.ok) {
           setTransactions(resultat.donnees.transactions)
@@ -50,58 +46,38 @@ export function useTransactions(utilisateur, setMessage) {
   }, [utilisateur, setMessage])
 
   async function gererCreationTransaction(donneesFormulaire) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return false
-    }
-
     try {
-      const resultat = await creerTransaction(donneesFormulaire, token)
+      const resultat = await creerTransaction(donneesFormulaire)
 
       if (!resultat.ok) {
         setMessage(resultat.donnees.message)
         return false
       }
 
-      const resultatListe = await recupererTransactions(token)
+      const resultatListe = await recupererTransactions()
 
       if (resultatListe.ok) {
         setTransactions(resultatListe.donnees.transactions)
       }
 
       setMessage("Transaction créée.")
-
       return true
     } catch {
       setMessage("Impossible de créer la transaction.")
-
       return false
     }
   }
 
   async function gererModificationTransaction(transactionId, donneesFormulaire) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return false
-    }
-
     try {
-      const resultat = await modifierTransaction(
-        transactionId,
-        donneesFormulaire,
-        token
-      )
+      const resultat = await modifierTransaction(transactionId, donneesFormulaire)
 
       if (!resultat.ok) {
         setMessage(resultat.donnees.message)
         return false
       }
 
-      const resultatListe = await recupererTransactions(token)
+      const resultatListe = await recupererTransactions()
 
       if (resultatListe.ok) {
         setTransactions(resultatListe.donnees.transactions)
@@ -109,25 +85,16 @@ export function useTransactions(utilisateur, setMessage) {
 
       setTransactionEnModification(null)
       setMessage("Transaction modifiée avec succès.")
-
       return true
     } catch {
       setMessage("Impossible de modifier la transaction.")
-
       return false
     }
   }
 
   async function gererSuppressionTransaction(transactionId) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return
-    }
-
     try {
-      const resultat = await supprimerTransaction(transactionId, token)
+      const resultat = await supprimerTransaction(transactionId)
 
       if (resultat.ok) {
         setTransactions((transactionsActuelles) =>

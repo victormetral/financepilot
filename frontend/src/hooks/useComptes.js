@@ -2,9 +2,9 @@
 // HOOK DES COMPTES BANCAIRES
 // ============================================================
 //
-// Rôle : charger, créer, modifier et supprimer les comptes de
-// l'utilisateur connecté. Se recharge/se vide automatiquement
-// quand `utilisateur` change (connexion/déconnexion).
+// Depuis Lot 5 : plus de vérification de token en local, le
+// cookie httpOnly gère l'authentification. Une réponse 401
+// du backend se traduit juste par resultat.ok === false.
 //
 // Utilisé par : App.jsx
 
@@ -23,15 +23,13 @@ export function useComptes(utilisateur, setMessage) {
 
   useEffect(() => {
     async function chargerComptes() {
-      const token = localStorage.getItem("token")
-
-      if (!utilisateur || !token) {
+      if (!utilisateur) {
         setComptes([])
         return
       }
 
       try {
-        const resultat = await recupererComptes(token)
+        const resultat = await recupererComptes()
 
         if (resultat.ok) {
           setComptes(resultat.donnees)
@@ -49,43 +47,26 @@ export function useComptes(utilisateur, setMessage) {
   }, [utilisateur, setMessage])
 
   async function gererCreationCompte(donneesFormulaire) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return false
-    }
-
     try {
-      const resultat = await creerCompte(donneesFormulaire, token)
+      const resultat = await creerCompte(donneesFormulaire)
 
       if (resultat.ok) {
         setComptes((comptesActuels) => [...comptesActuels, resultat.donnees])
         setMessage("Compte bancaire créé.")
-
         return true
       }
 
       setMessage(resultat.donnees.message)
-
       return false
     } catch {
       setMessage("Impossible de créer le compte bancaire.")
-
       return false
     }
   }
 
   async function gererModificationCompte(compteId, donneesFormulaire) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return
-    }
-
     try {
-      const resultat = await modifierCompte(compteId, donneesFormulaire, token)
+      const resultat = await modifierCompte(compteId, donneesFormulaire)
 
       if (resultat.ok) {
         setComptes((comptesActuels) =>
@@ -105,15 +86,8 @@ export function useComptes(utilisateur, setMessage) {
   }
 
   async function gererSuppressionCompte(compteId) {
-    const token = localStorage.getItem("token")
-
-    if (!token) {
-      setMessage("Vous devez être connecté.")
-      return
-    }
-
     try {
-      const resultat = await supprimerCompte(compteId, token)
+      const resultat = await supprimerCompte(compteId)
 
       if (resultat.ok) {
         setComptes((comptesActuels) =>

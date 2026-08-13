@@ -4,10 +4,8 @@ import { API_URL } from "../config/api.js"
 // SERVICE DES TRANSACTIONS
 // ============================================================
 //
-// Rôle : centralise les appels HTTP vers l'API Transactions.
-// Le token JWT est envoyé dans chaque requête protégée.
-//
-// Utilisé par : hooks/useTransactions.js
+// Depuis Lot 5 : `credentials: "include"` remplace le header
+// Authorization — le cookie httpOnly part automatiquement.
 
 async function lireReponse(reponse) {
   const donnees = await reponse.json()
@@ -18,36 +16,26 @@ async function lireReponse(reponse) {
   }
 }
 
-function creerHeaders(token, avecJson = false) {
-  const headers = {
-    Authorization: `Bearer ${token}`,
-  }
-
-  if (avecJson) {
-    headers["Content-Type"] = "application/json"
-  }
-
-  return headers
-}
-
-// Récupère les transactions de l'utilisateur connecté.
-// Filtres optionnels, non exposés pour l'instant côté UI ;
-// le backend applique ses valeurs par défaut si absents.
-export async function recupererTransactions(token) {
+export async function recupererTransactions() {
   const reponse = await fetch(`${API_URL}/transactions`, {
-    headers: creerHeaders(token),
+    credentials: "include",
   })
 
   return lireReponse(reponse)
 }
 
-export async function creerTransaction(
-  { compteId, categorieId, libelle, montant, dateTransaction, typeTransaction },
-  token
-) {
+export async function creerTransaction({
+  compteId,
+  categorieId,
+  libelle,
+  montant,
+  dateTransaction,
+  typeTransaction,
+}) {
   const reponse = await fetch(`${API_URL}/transactions`, {
     method: "POST",
-    headers: creerHeaders(token, true),
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       compte_id: Number(compteId),
       categorie_id: categorieId ? Number(categorieId) : null,
@@ -63,12 +51,12 @@ export async function creerTransaction(
 
 export async function modifierTransaction(
   transactionId,
-  { compteId, categorieId, libelle, montant, dateTransaction, typeTransaction },
-  token
+  { compteId, categorieId, libelle, montant, dateTransaction, typeTransaction }
 ) {
   const reponse = await fetch(`${API_URL}/transactions/${transactionId}`, {
     method: "PUT",
-    headers: creerHeaders(token, true),
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       compte_id: Number(compteId),
       categorie_id: categorieId ? Number(categorieId) : null,
@@ -82,10 +70,10 @@ export async function modifierTransaction(
   return lireReponse(reponse)
 }
 
-export async function supprimerTransaction(transactionId, token) {
+export async function supprimerTransaction(transactionId) {
   const reponse = await fetch(`${API_URL}/transactions/${transactionId}`, {
     method: "DELETE",
-    headers: creerHeaders(token),
+    credentials: "include",
   })
 
   return lireReponse(reponse)

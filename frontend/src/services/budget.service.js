@@ -1,11 +1,11 @@
 import { API_URL } from "../config/api.js"
 
-/*
-  SERVICE DES BUDGETS
-
-  Centralise les appels HTTP vers l'API Budget.
-  Le token JWT est envoyé dans chaque requête protégée.
-*/
+// ============================================================
+// SERVICE DES BUDGETS
+// ============================================================
+//
+// Depuis Lot 5 : `credentials: "include"` remplace le header
+// Authorization — le cookie httpOnly part automatiquement.
 
 async function lireReponse(reponse) {
   const donnees = await reponse.json()
@@ -16,35 +16,19 @@ async function lireReponse(reponse) {
   }
 }
 
-function creerHeaders(token, avecJson = false) {
-  const headers = {
-    Authorization: `Bearer ${token}`,
-  }
-
-  if (avecJson) {
-    headers["Content-Type"] = "application/json"
-  }
-
-  return headers
-}
-
-// Récupère la liste des budgets de l'utilisateur connecté.
-export async function recupererBudgets(token) {
+export async function recupererBudgets() {
   const reponse = await fetch(`${API_URL}/budgets`, {
-    headers: creerHeaders(token),
+    credentials: "include",
   })
 
   return lireReponse(reponse)
 }
 
-// Crée un budget pour une catégorie et une période données.
-export async function creerBudget(
-  { categorieId, montantLimite, mois, annee },
-  token
-) {
+export async function creerBudget({ categorieId, montantLimite, mois, annee }) {
   const reponse = await fetch(`${API_URL}/budgets`, {
     method: "POST",
-    headers: creerHeaders(token, true),
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       categorie_id: Number(categorieId),
       montant_limite: Number(montantLimite),
@@ -56,38 +40,30 @@ export async function creerBudget(
   return lireReponse(reponse)
 }
 
-// Modifie un budget existant.
 export async function modifierBudget(
   budgetId,
-  { categorieId, montantLimite, mois, annee },
-  token
+  { categorieId, montantLimite, mois, annee }
 ) {
-  const reponse = await fetch(
-    `${API_URL}/budgets/${budgetId}`,
-    {
-      method: "PUT",
-      headers: creerHeaders(token, true),
-      body: JSON.stringify({
-        categorie_id: Number(categorieId),
-        montant_limite: Number(montantLimite),
-        mois: Number(mois),
-        annee: Number(annee),
-      }),
-    }
-  )
+  const reponse = await fetch(`${API_URL}/budgets/${budgetId}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      categorie_id: Number(categorieId),
+      montant_limite: Number(montantLimite),
+      mois: Number(mois),
+      annee: Number(annee),
+    }),
+  })
 
   return lireReponse(reponse)
 }
 
-// Supprime un budget appartenant à l'utilisateur connecté.
-export async function supprimerBudget(budgetId, token) {
-  const reponse = await fetch(
-    `${API_URL}/budgets/${budgetId}`,
-    {
-      method: "DELETE",
-      headers: creerHeaders(token),
-    }
-  )
+export async function supprimerBudget(budgetId) {
+  const reponse = await fetch(`${API_URL}/budgets/${budgetId}`, {
+    method: "DELETE",
+    credentials: "include",
+  })
 
   return lireReponse(reponse)
 }
