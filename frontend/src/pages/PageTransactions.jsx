@@ -19,6 +19,7 @@ function PageTransactions() {
     transactionEnModification,
     setTransactionEnModification,
     gererCreationTransaction,
+    gererDuplicationTransaction,
     gererModificationTransaction,
     gererSuppressionTransaction,
     message,
@@ -68,6 +69,7 @@ function PageTransactions() {
           onDemarrerModification={setTransactionEnModification}
           onModification={gererModificationTransaction}
           onAnnulation={() => setTransactionEnModification(null)}
+          onDuplication={gererDuplicationTransaction}
           onSuppression={gererSuppressionTransaction}
         />
       </section>

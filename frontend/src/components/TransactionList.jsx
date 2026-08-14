@@ -21,6 +21,10 @@ import {
 // Utilisé par : pages/PageTransactions.jsx
 // Utilise : TransactionEditForm.jsx, hooks/useReglages.js
 
+// ============================================================
+// 1. OUTILS D'AFFICHAGE
+// ============================================================
+
 function formaterDate(dateIso) {
   return dateIso.split("T")[0]
 }
@@ -38,6 +42,10 @@ const LIBELLES_TYPE = {
   transfert: "Transfert",
 }
 
+// ============================================================
+// 2. COMPOSANT
+// ============================================================
+
 function TransactionList({
   transactions,
   comptes,
@@ -46,6 +54,7 @@ function TransactionList({
   onDemarrerModification,
   onModification,
   onAnnulation,
+  onDuplication,
   onSuppression,
 }) {
   const { reglages } = useReglages()
@@ -104,6 +113,19 @@ function TransactionList({
             </div>
 
             <div className="liste__actions">
+              {/*
+                Dupliquer est placé en premier : c'est l'action
+                la plus fréquente sur une transaction passée,
+                bien avant la modification.
+              */}
+              <button
+                type="button"
+                className="bouton-secondaire"
+                onClick={() => onDuplication(transaction.id)}
+              >
+                Dupliquer
+              </button>
+
               <button
                 type="button"
                 className="bouton-secondaire"
