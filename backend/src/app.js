@@ -19,6 +19,7 @@ import { verifierAuthentification } from "./middlewares/auth.middleware.js"
 import compteRoutes from "./routes/compte.routes.js"
 import categorieRoutes from "./routes/categorie.routes.js"
 import transactionRoutes from "./routes/transaction.routes.js"
+import recurrenceRoutes from "./routes/recurrence.routes.js"
 import budgetRoutes from "./routes/budget.routes.js"
 import objectifRoutes from "./routes/objectif.routes.js"
 import actifFinancierRoutes from "./routes/actifFinancier.routes.js"
@@ -64,6 +65,7 @@ app.use(verifierAuthentification)
 app.use("/api/comptes", compteRoutes)
 app.use("/api/categories", categorieRoutes)
 app.use("/api/transactions", transactionRoutes)
+app.use("/api/recurrences", recurrenceRoutes)
 app.use("/api/budgets", budgetRoutes)
 app.use("/api/objectifs", objectifRoutes)
 app.use("/api/actifs-financiers", actifFinancierRoutes)
