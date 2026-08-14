@@ -5,13 +5,15 @@
   - GET    /api/recurrences
   - GET    /api/recurrences/:id
   - POST   /api/recurrences
+  - POST   /api/recurrences/generer
   - PUT    /api/recurrences/:id
   - DELETE /api/recurrences/:id
 
   Répartition des responsabilités :
-  recurrence.controller.js → orchestre les requêtes HTTP
-  recurrence.validator.js  → valide, nettoie, transforme
-  recurrence.service.js    → exécute les requêtes SQL
+  recurrence.controller.js           → orchestre les requêtes HTTP
+  recurrence.validator.js            → valide, nettoie, transforme
+  recurrence.service.js              → SQL du CRUD
+  recurrenceGeneration.service.js    → SQL de la génération
 
   Comme depuis le Lot 3 : asyncHandler transmet toute erreur
   non gérée à erreurGlobale.middleware.js, et les erreurs
@@ -31,6 +33,8 @@ import {
   updateRecurrence,
   deleteRecurrence,
 } from "../services/recurrence.service.js"
+
+import { genererOccurrencesDues } from "../services/recurrenceGeneration.service.js"
 
 import {
   validerIdRecurrence,
@@ -189,3 +193,39 @@ export const deleteRecurrenceById = asyncHandler(async (request, response) => {
     recurrence: recurrenceSupprimee,
   })
 })
+
+// ============================================================
+// 5. GÉNÉRATION DES OCCURRENCES
+// ============================================================
+
+/*
+  Crée toutes les transactions dues depuis le dernier appel.
+
+  Appelée par le frontend au chargement de l'application,
+  plutôt que par une tâche planifiée : un hébergement met le
+  serveur en veille quand personne ne l'utilise, et le
+  rattrapage à la demande fonctionne même après plusieurs
+  mois d'absence.
+
+  Aucun corps de requête : l'opération ne dépend que de
+  l'utilisateur du JWT et de la date du jour.
+
+  Réponse 200 et non 201 : l'appel réussit même quand rien
+  n'est créé, ce qui est le cas le plus fréquent.
+*/
+export const postGenerationRecurrences = asyncHandler(
+  async (request, response) => {
+    const resultat = await genererOccurrencesDues(
+      request.utilisateur.utilisateurId
+    )
+
+    response.json({
+      message:
+        resultat.nombreCreees === 0
+          ? "Aucune transaction récurrente à générer"
+          : `${resultat.nombreCreees} transaction(s) générée(s)`,
+      nombre_creees: resultat.nombreCreees,
+      transactions: resultat.transactions,
+    })
+  }
+)

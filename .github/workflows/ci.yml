@@ -89,9 +89,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes jq postgresql-client
-
-      # Les migrations sont rejouées dans l'ordre numérique :
-      # la CI part d'une base vide à chaque exécution.
+      
       - name: Create database tables
         env:
           PGPASSWORD: financepilot
@@ -136,6 +134,12 @@ jobs:
 
       - name: Run error tests
         run: bash scripts/test-errors.sh
+
+      - name: Run recurrence CRUD tests
+        run: bash scripts/test-crud-recurrences.sh
+
+      - name: Run recurrence generation tests
+        run: bash scripts/test-generation-recurrences.sh
 
       - name: Display backend logs after failure
         if: failure()

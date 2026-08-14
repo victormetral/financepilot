@@ -10,6 +10,7 @@
   - GET    /api/recurrences
   - GET    /api/recurrences/:id
   - POST   /api/recurrences
+  - POST   /api/recurrences/generer
   - PUT    /api/recurrences/:id
   - DELETE /api/recurrences/:id
 
@@ -27,9 +28,30 @@ import {
   postRecurrence,
   putRecurrence,
   deleteRecurrenceById,
+  postGenerationRecurrences,
 } from "../controllers/recurrence.controller.js"
 
 const router = Router()
+
+// ============================================================
+// 1. ROUTES À CHEMIN FIXE
+// ============================================================
+
+/*
+  "generer" doit être déclaré avant toute route contenant
+  ":id" sur le même verbe. Express parcourt les routes dans
+  l'ordre d'écriture : une route à joker placée avant
+  intercepterait "generer" en le prenant pour un identifiant.
+
+  Le POST n'a pas de route ":id" ici, mais la règle est
+  conservée pour que l'ajout d'une telle route plus tard
+  ne casse rien silencieusement.
+*/
+router.post("/generer", postGenerationRecurrences)
+
+// ============================================================
+// 2. CRUD
+// ============================================================
 
 // Lister les récurrences de l'utilisateur.
 router.get("/", getRecurrences)
