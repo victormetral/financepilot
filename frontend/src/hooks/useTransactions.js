@@ -11,9 +11,13 @@
 // est paginée, filtrer localement ne verrait que la page
 // courante et donnerait des résultats faux.
 //
+// Depuis Lot 9d : rechargerListe est exposée sous le nom
+// rechargerTransactions, pour que la génération automatique
+// des récurrences puisse rafraîchir la liste après coup.
+//
 // Utilisé par : App.jsx
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import {
   creerTransaction,
@@ -91,8 +95,14 @@ export function useTransactions(utilisateur, setMessage) {
     ou une modification. Les filtres actifs sont conservés,
     sinon créer une transaction pendant une recherche ferait
     réapparaître la liste entière.
+
+    useCallback fige la référence de la fonction tant que les
+    filtres ne changent pas. C'est nécessaire depuis le Lot 9d :
+    la fonction est transmise à useRecurrences, qui la place
+    dans les dépendances d'un effet. Recréée à chaque rendu,
+    elle relancerait cet effet à chaque rendu.
   */
-  async function rechargerListe() {
+  const rechargerListe = useCallback(async () => {
     try {
       const resultat = await recupererTransactions(filtres)
 
@@ -102,7 +112,7 @@ export function useTransactions(utilisateur, setMessage) {
     } catch {
       setMessage("Impossible de récupérer les transactions.")
     }
-  }
+  }, [filtres, setMessage])
 
   // ==========================================================
   // 2. GESTION DES FILTRES
@@ -254,5 +264,8 @@ export function useTransactions(utilisateur, setMessage) {
     gererDuplicationTransaction,
     gererModificationTransaction,
     gererSuppressionTransaction,
+    // Nom explicite hors du hook : le contexte partagé entre
+    // toutes les pages contient plusieurs listes.
+    rechargerTransactions: rechargerListe,
   }
 }

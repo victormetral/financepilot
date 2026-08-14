@@ -15,6 +15,7 @@ import Layout from "./components/Layout.jsx"
 
 import PageDashboard from "./pages/PageDashboard.jsx"
 import PageTransactions from "./pages/PageTransactions.jsx"
+import PageRecurrences from "./pages/PageRecurrences.jsx"
 import PageComptes from "./pages/PageComptes.jsx"
 import PageCategories from "./pages/PageCategories.jsx"
 import PageBudgets from "./pages/PageBudgets.jsx"
@@ -27,6 +28,7 @@ import { useComptes } from "./hooks/useComptes.js"
 import { useCategories } from "./hooks/useCategories.js"
 import { useBudgets } from "./hooks/useBudgets.js"
 import { useTransactions } from "./hooks/useTransactions.js"
+import { useRecurrences } from "./hooks/useRecurrences.js"
 import { useObjectifs } from "./hooks/useObjectifs.js"
 import { useOperationsInvestissement } from "./hooks/useOperationsInvestissement.js"
 import { useActifsFinanciers } from "./hooks/useActifsFinanciers.js"
@@ -45,6 +47,20 @@ function App() {
   const categoriesData = useCategories(utilisateur, setMessage)
   const budgetsData = useBudgets(utilisateur, setMessage)
   const transactionsData = useTransactions(utilisateur, setMessage)
+
+  /*
+    useRecurrences doit être appelé après useTransactions : il
+    reçoit rechargerTransactions, la fonction qui rafraîchit la
+    liste une fois les échéances manquées générées à
+    l'ouverture. Sans elle, les transactions créées
+    automatiquement n'apparaîtraient qu'au rechargement suivant.
+  */
+  const recurrencesData = useRecurrences(
+    utilisateur,
+    setMessage,
+    transactionsData.rechargerTransactions
+  )
+
   const objectifsData = useObjectifs(utilisateur, setMessage)
   const operationsData = useOperationsInvestissement(utilisateur, setMessage)
   const actifsData = useActifsFinanciers(utilisateur, setMessage)
@@ -70,6 +86,7 @@ function App() {
     ...categoriesData,
     ...budgetsData,
     ...transactionsData,
+    ...recurrencesData,
     ...objectifsData,
     ...operationsData,
     ...actifsData,
@@ -92,6 +109,7 @@ function App() {
           <Route path="/comptes" element={<PageComptes />} />
           <Route path="/categories" element={<PageCategories />} />
           <Route path="/transactions" element={<PageTransactions />} />
+          <Route path="/recurrences" element={<PageRecurrences />} />
           <Route path="/budgets" element={<PageBudgets />} />
           <Route path="/objectifs" element={<PageObjectifs />} />
           <Route path="/investissements" element={<PageInvestissements />} />

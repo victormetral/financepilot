@@ -9,6 +9,8 @@
 // L'ordre des liens suit le parcours logique d'utilisation :
 // on crée d'abord ses comptes, puis ses catégories, avant de
 // pouvoir saisir des transactions et fixer des budgets.
+// Les récurrences suivent immédiatement les transactions :
+// ce sont des transactions programmées à l'avance.
 //
 // Utilisé par : Layout.jsx
 // Utilise : hooks/useTheme.js, react-router-dom
@@ -21,6 +23,7 @@ const LIENS_NAVIGATION = [
   { chemin: "/comptes", libelle: "Comptes", icone: "▤" },
   { chemin: "/categories", libelle: "Catégories", icone: "◫" },
   { chemin: "/transactions", libelle: "Transactions", icone: "≡" },
+  { chemin: "/recurrences", libelle: "Récurrences", icone: "↻" },
   { chemin: "/budgets", libelle: "Budgets", icone: "◔" },
   { chemin: "/objectifs", libelle: "Objectifs", icone: "◎" },
   { chemin: "/investissements", libelle: "Investissements", icone: "▲" },
