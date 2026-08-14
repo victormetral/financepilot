@@ -102,7 +102,8 @@ jobs:
             --file=database/schema.sql \
             --file=database/migrations/001_add_account_subtype.sql \
             --file=database/migrations/002_add_user_role.sql \
-            --file=database/migrations/003_add_check_constraints.sql
+            --file=database/migrations/003_add_check_constraints.sql \
+            --file=database/migrations/004_symbole_actif_unique.sql
 
       - name: Start backend
         working-directory: backend

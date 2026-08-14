@@ -144,6 +144,12 @@
   opacity: 0.88;
 }
 
+.formulaire__avertissement {
+  font-size: var(--taille-xs);
+  color: var(--alerte);
+  line-height: 1.4;
+}
+
 /* ------------------------------------------------------------
    3. LISTES
    ------------------------------------------------------------ */
@@ -340,4 +346,83 @@
   background: transparent;
   color: var(--texte-doux);
   border: 1px solid var(--bordure);
+}
+
+/* ------------------------------------------------------------
+   10. OBJECTIFS
+   ------------------------------------------------------------
+   Un objectif occupe plus de place qu'une ligne de liste
+   classique : barre de progression et projection en dessous.
+   ------------------------------------------------------------ */
+
+.objectif {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-3);
+  padding: var(--espace-4);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon-md);
+  list-style: none;
+}
+
+.objectif__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-4);
+}
+
+.objectif__barre {
+  height: 8px;
+  border-radius: var(--rayon-plein);
+  background: var(--bordure);
+  overflow: hidden;
+}
+
+.objectif__progression {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--rayon-plein);
+  transition: width var(--transition);
+}
+
+.objectif__progression[data-atteint="true"] {
+  background: var(--positif);
+}
+
+.objectif__pied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-3);
+  font-size: var(--taille-xs);
+  color: var(--texte-doux);
+}
+
+.objectif__projection {
+  font-weight: 500;
+}
+
+.objectif__projection--atteint {
+  color: var(--positif);
+}
+
+.objectif__projection--alerte {
+  color: var(--alerte);
+}
+
+/* ------------------------------------------------------------
+   11. NOTES EXPLICATIVES ET POSITIONS
+   ------------------------------------------------------------ */
+
+.page__note {
+  font-size: var(--taille-xs);
+  color: var(--texte-faible);
+  font-style: italic;
+}
+
+.position__valeur {
+  font-size: var(--taille-base);
+  font-weight: 600;
+  flex-shrink: 0;
 }

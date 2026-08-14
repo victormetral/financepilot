@@ -303,3 +303,51 @@ export function formaterMontant(montant, devise = "EUR") {
 export function formaterPourcentage(valeur, decimales = 1) {
   return `${Number(valeur).toFixed(decimales)} %`
 }
+
+// ------------------------------------------------------------
+// 7. PROJECTION D'OBJECTIFS
+// ------------------------------------------------------------
+
+/*
+  Estime la date d'atteinte d'un objectif au rythme d'épargne
+  mensuel constaté.
+
+  Renvoie null quand la projection n'a pas de sens : objectif
+  déjà atteint, ou épargne nulle/négative (à ce rythme, l'objectif
+  ne sera jamais atteint — mieux vaut ne rien afficher que
+  d'annoncer une date absurde).
+*/
+export function projeterAtteinteObjectif(
+  montantActuel,
+  montantCible,
+  epargneMensuelle,
+  dateReference = new Date()
+) {
+  const restant = Number(montantCible) - Number(montantActuel)
+
+  if (restant <= 0) {
+    return { atteint: true, dateEstimee: null, moisRestants: 0 }
+  }
+
+  if (epargneMensuelle <= 0) {
+    return { atteint: false, dateEstimee: null, moisRestants: null }
+  }
+
+  const moisRestants = Math.ceil(restant / epargneMensuelle)
+
+  const dateEstimee = new Date(dateReference)
+  dateEstimee.setMonth(dateEstimee.getMonth() + moisRestants)
+
+  return { atteint: false, dateEstimee, moisRestants }
+}
+
+/*
+  Formate une date en "mars 2028" — plus lisible qu'une date
+  précise pour une estimation qui reste approximative.
+*/
+export function formaterMoisAnnee(date) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    month: "long",
+    year: "numeric",
+  }).format(date)
+}

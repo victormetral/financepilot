@@ -1,21 +1,27 @@
 // ============================================================
-// HOOK DES OPÉRATIONS D'INVESTISSEMENT (LECTURE SEULE)
+// HOOK DES OPÉRATIONS D'INVESTISSEMENT
 // ============================================================
 //
-// Rôle : charge les opérations d'investissement de l'utilisateur
-// connecté, nécessaires au calcul du patrimoine net. Se recharge
-// automatiquement quand `utilisateur` change.
+// Rôle : charger, créer, modifier et supprimer les opérations
+// d'achat/vente d'actifs de l'utilisateur connecté.
 //
-// Lecture seule pour l'instant — la création/modification vivra
-// dans un hook complet au Lot 8, avec la page Investissements.
+// Les opérations alimentent aussi le calcul du patrimoine net
+// sur le tableau de bord.
 //
-// Utilisé par : App.jsx (contexteRoutes → PageDashboard)
+// Utilisé par : App.jsx (contexteRoutes → PageDashboard, PageInvestissements)
 
 import { useEffect, useState } from "react"
-import { recupererOperationsInvestissement } from "../services/operationInvestissement.service.js"
+
+import {
+  creerOperationInvestissement,
+  modifierOperationInvestissement,
+  recupererOperationsInvestissement,
+  supprimerOperationInvestissement,
+} from "../services/operationInvestissement.service.js"
 
 export function useOperationsInvestissement(utilisateur, setMessage) {
   const [operationsInvestissement, setOperationsInvestissement] = useState([])
+  const [operationEnModification, setOperationEnModification] = useState(null)
 
   useEffect(() => {
     async function chargerOperations() {
@@ -42,5 +48,80 @@ export function useOperationsInvestissement(utilisateur, setMessage) {
     chargerOperations()
   }, [utilisateur, setMessage])
 
-  return { operationsInvestissement }
+  // Après création/modification, la liste est rechargée pour
+  // récupérer nom_compte et symbole_actif (jointures backend).
+  async function rechargerOperations() {
+    const resultat = await recupererOperationsInvestissement()
+
+    if (resultat.ok) {
+      setOperationsInvestissement(resultat.donnees)
+    }
+  }
+
+  async function gererCreationOperation(donneesFormulaire) {
+    try {
+      const resultat = await creerOperationInvestissement(donneesFormulaire)
+
+      if (!resultat.ok) {
+        setMessage(resultat.donnees.message)
+        return false
+      }
+
+      await rechargerOperations()
+      setMessage("Opération enregistrée.")
+      return true
+    } catch {
+      setMessage("Impossible d'enregistrer l'opération.")
+      return false
+    }
+  }
+
+  async function gererModificationOperation(operationId, donneesFormulaire) {
+    try {
+      const resultat = await modifierOperationInvestissement(
+        operationId,
+        donneesFormulaire
+      )
+
+      if (!resultat.ok) {
+        setMessage(resultat.donnees.message)
+        return false
+      }
+
+      await rechargerOperations()
+      setOperationEnModification(null)
+      setMessage("Opération modifiée.")
+      return true
+    } catch {
+      setMessage("Impossible de modifier l'opération.")
+      return false
+    }
+  }
+
+  async function gererSuppressionOperation(operationId) {
+    try {
+      const resultat = await supprimerOperationInvestissement(operationId)
+
+      if (resultat.ok) {
+        setOperationsInvestissement((operationsActuelles) =>
+          operationsActuelles.filter((operation) => operation.id !== operationId)
+        )
+
+        setMessage(resultat.donnees.message)
+      } else {
+        setMessage(resultat.donnees.message)
+      }
+    } catch {
+      setMessage("Impossible de supprimer l'opération.")
+    }
+  }
+
+  return {
+    operationsInvestissement,
+    operationEnModification,
+    setOperationEnModification,
+    gererCreationOperation,
+    gererModificationOperation,
+    gererSuppressionOperation,
+  }
 }

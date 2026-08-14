@@ -31,6 +31,8 @@ function PageDashboard() {
     resteAVivre,
     budgetsEnTension,
     aucuneDonnee,
+    moisCourant,
+    anneeCourante,
   } = useTableauDeBord(comptes, transactions, budgets, operationsInvestissement)
 
   if (aucuneDonnee) {
@@ -80,7 +82,11 @@ function PageDashboard() {
       />
 
       <div className="tableau-de-bord__grille">
-        <CarteFluxMois fluxDuMois={fluxDuMois} />
+        <CarteFluxMois
+          fluxDuMois={fluxDuMois}
+          mois={moisCourant}
+          annee={anneeCourante}
+        />
         <CarteResteAVivre resteAVivre={resteAVivre} />
       </div>
 

@@ -6,8 +6,7 @@
 // connecté/déconnecté, et déclarer les routes de l'application.
 //
 // contexteRoutes regroupe les données de chaque hook et les
-// transmet aux pages via Layout → Outlet, pour éviter de
-// répéter les mêmes props sur chaque <Route>.
+// transmet aux pages via Layout → Outlet.
 
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
@@ -27,7 +26,9 @@ import { useComptes } from "./hooks/useComptes.js"
 import { useCategories } from "./hooks/useCategories.js"
 import { useBudgets } from "./hooks/useBudgets.js"
 import { useTransactions } from "./hooks/useTransactions.js"
+import { useObjectifs } from "./hooks/useObjectifs.js"
 import { useOperationsInvestissement } from "./hooks/useOperationsInvestissement.js"
+import { useActifsFinanciers } from "./hooks/useActifsFinanciers.js"
 
 function App() {
   const {
@@ -43,7 +44,9 @@ function App() {
   const categoriesData = useCategories(utilisateur, setMessage)
   const budgetsData = useBudgets(utilisateur, setMessage)
   const transactionsData = useTransactions(utilisateur, setMessage)
+  const objectifsData = useObjectifs(utilisateur, setMessage)
   const operationsData = useOperationsInvestissement(utilisateur, setMessage)
+  const actifsData = useActifsFinanciers(utilisateur, setMessage)
 
   if (!utilisateur) {
     return (
@@ -66,7 +69,9 @@ function App() {
     ...categoriesData,
     ...budgetsData,
     ...transactionsData,
+    ...objectifsData,
     ...operationsData,
+    ...actifsData,
     message,
   }
 
@@ -83,9 +88,9 @@ function App() {
           }
         >
           <Route path="/" element={<PageDashboard />} />
-          <Route path="/transactions" element={<PageTransactions />} />
           <Route path="/comptes" element={<PageComptes />} />
           <Route path="/categories" element={<PageCategories />} />
+          <Route path="/transactions" element={<PageTransactions />} />
           <Route path="/budgets" element={<PageBudgets />} />
           <Route path="/objectifs" element={<PageObjectifs />} />
           <Route path="/investissements" element={<PageInvestissements />} />
