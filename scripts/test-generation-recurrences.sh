@@ -10,9 +10,6 @@
 # fin et l'état en pause, et reste étanche entre utilisateurs.
 #
 # Utilise : scripts/lib/test-helpers.sh (mutualisé)
-#
-# Les dates sont calculées à partir du jour du test, pour que
-# le script reste valable dans six mois.
 # ============================================================
 
 set -e
@@ -29,20 +26,40 @@ MOT_DE_PASSE="TestFinance123!"
 EMAIL_1="generation-1-${TIMESTAMP}@financepilot.test"
 EMAIL_2="generation-2-${TIMESTAMP}@financepilot.test"
 
-# Dates relatives au jour du test.
-# macOS utilise -v, Linux (donc la CI) utilise -d.
-decaler_date() {
-  local decalage="$1"
+# ------------------------------------------------------------
+# CALCUL DES DATES DE TEST
+# ------------------------------------------------------------
+# Calculé en bash pur plutôt qu'avec date : la syntaxe des
+# décalages diffère entre macOS (date -v-3m) et Linux
+# (date -d "-3 months"), et les deux ne traitent pas les fins
+# de mois de la même façon.
+#
+# Le jour est toujours le 1er : c'est le seul qui existe dans
+# tous les mois et qui soit déjà passé quel que soit le jour
+# où le test tourne. Avec le 5, un test lancé un 2 du mois
+# produirait 3 occurrences au lieu des 4 attendues.
+#
+# 10# force la lecture en base 10 : sans lui, bash prend "08"
+# et "09" pour de l'octal et refuse de les interpréter.
 
-  if date -v"$decalage" "+%Y-%m-%d" >/dev/null 2>&1; then
-    date -v"$decalage" "+%Y-%m-%d"
-  else
-    date -d "$decalage" "+%Y-%m-%d"
-  fi
+decaler_mois() {
+  local nombre_de_mois="$1"
+  local annee_courante
+  local mois_courant
+  local mois_absolu
+
+  annee_courante=$(date +%Y)
+  mois_courant=$(date +%m)
+
+  mois_absolu=$(( 10#$annee_courante * 12 + 10#$mois_courant - 1 + nombre_de_mois ))
+
+  printf '%04d-%02d-01' \
+    $(( mois_absolu / 12 )) \
+    $(( mois_absolu % 12 + 1 ))
 }
 
-DATE_IL_Y_A_3_MOIS=$(decaler_date "-3m")
-DATE_DANS_1_MOIS=$(decaler_date "+1m")
+DATE_IL_Y_A_3_MOIS=$(decaler_mois -3)
+DATE_DANS_1_MOIS=$(decaler_mois 1)
 
 source "$(dirname "$0")/lib/test-helpers.sh"
 
@@ -69,6 +86,7 @@ CODE_HTTP=$(requete_http "GET" "http://localhost:3000/")
 verifier_code_http "$CODE_HTTP" "200" "Backend accessible"
 
 echo "ℹ️  Début simulé : $DATE_IL_Y_A_3_MOIS"
+echo "ℹ️  Récurrence future : $DATE_DANS_1_MOIS"
 
 # ============================================================
 # 2. UTILISATEURS, COMPTE ET CATÉGORIE
@@ -241,10 +259,6 @@ requete_http "DELETE" "$API_URL/recurrences/$RECURRENCE_PAUSE_ID" >/dev/null
 
 # Les transactions doivent partir avant le compte : la clé
 # étrangère compte_id n'est pas ON DELETE SET NULL.
-for ID_TRANSACTION in $(jq -r '.transactions[].id' "$RESPONSE_FILE" 2>/dev/null); do
-  requete_http "DELETE" "$API_URL/transactions/$ID_TRANSACTION" >/dev/null
-done
-
 CODE_HTTP=$(requete_http "GET" "$API_URL/transactions?limite=50")
 for ID_TRANSACTION in $(jq -r '.transactions[].id' "$RESPONSE_FILE"); do
   requete_http "DELETE" "$API_URL/transactions/$ID_TRANSACTION" >/dev/null
