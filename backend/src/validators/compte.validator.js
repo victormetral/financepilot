@@ -3,6 +3,10 @@
 
   Valide et normalise les données des comptes.
   Ne doit pas : appeler PostgreSQL, envoyer de réponse HTTP.
+
+  La devise est vérifiée contre une liste fermée
+  (devise.constants.js) : un champ texte libre acceptait
+  auparavant "dollars", "$" ou n'importe quoi d'autre.
 */
 
 import {
@@ -19,6 +23,11 @@ import {
   TYPES_COMPTE_AUTORISES,
   sousTypeCompteEstValide,
 } from "../constants/compte.constants.js"
+
+import {
+  DEVISES_AUTORISEES,
+  DEVISE_PAR_DEFAUT,
+} from "../constants/devise.constants.js"
 
 export const validerIdCompte = (id) => {
   const idNombre = Number(id)
@@ -72,17 +81,31 @@ const validerDonneesCompte = ({ nom, type_compte, sous_type_compte, solde_initia
     return validationEchouee("devise doit être un texte non vide")
   }
 
+  const deviseNormalisee = devise.trim().toUpperCase()
+
+  if (!DEVISES_AUTORISEES.includes(deviseNormalisee)) {
+    return validationEchouee(
+      `devise doit être l'une des valeurs suivantes : ${DEVISES_AUTORISEES.join(", ")}`
+    )
+  }
+
   return validationReussie({
     nom: nom.trim(),
     type_compte: resultatTypeCompte.donnees.typeCompte,
     sous_type_compte: resultatTypeCompte.donnees.sousTypeCompte,
     solde_initial: soldeInitial,
-    devise: devise.trim().toUpperCase(),
+    devise: deviseNormalisee,
   })
 }
 
 export const validerCreationCompte = (body) => {
-  const { nom, type_compte, sous_type_compte, solde_initial = 0, devise = "EUR" } = body
+  const {
+    nom,
+    type_compte,
+    sous_type_compte,
+    solde_initial = 0,
+    devise = DEVISE_PAR_DEFAUT,
+  } = body
 
   if (nom === undefined || type_compte === undefined || sous_type_compte === undefined) {
     return validationEchouee("nom, type_compte et sous_type_compte sont obligatoires")

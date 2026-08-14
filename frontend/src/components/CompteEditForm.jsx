@@ -1,5 +1,7 @@
 import { useState } from "react"
 
+import { DEVISES } from "../constants/devise.constants.js"
+
 // ============================================================
 // FORMULAIRE DE MODIFICATION D'UN COMPTE
 // ============================================================
@@ -92,7 +94,7 @@ function CompteEditForm({ compte, onModification, onAnnulation }) {
       </div>
 
       <div className="formulaire__champ">
-        <label htmlFor={`soldeCompteModifie-${compte.id}`}>Solde initial (€)</label>
+        <label htmlFor={`soldeCompteModifie-${compte.id}`}>Solde initial</label>
         <input
           id={`soldeCompteModifie-${compte.id}`}
           type="number"
@@ -105,13 +107,18 @@ function CompteEditForm({ compte, onModification, onAnnulation }) {
 
       <div className="formulaire__champ">
         <label htmlFor={`deviseCompteModifie-${compte.id}`}>Devise</label>
-        <input
+        <select
           id={`deviseCompteModifie-${compte.id}`}
-          type="text"
           value={devise}
           onChange={(event) => setDevise(event.target.value)}
           required
-        />
+        >
+          {DEVISES.map((deviseOption) => (
+            <option key={deviseOption.code} value={deviseOption.code}>
+              {deviseOption.libelle}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div style={{ display: "flex", gap: "var(--espace-2)" }}>

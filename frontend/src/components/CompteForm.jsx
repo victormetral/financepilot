@@ -1,11 +1,17 @@
 import { useState } from "react"
 
+import { DEVISES, DEVISE_PAR_DEFAUT } from "../constants/devise.constants.js"
+
 // ============================================================
 // FORMULAIRE DE CRÉATION D'UN COMPTE
 // ============================================================
 //
 // Rôle : saisir un nouveau compte bancaire. Le sous-type dépend
 // du type choisi — la liste se met à jour dynamiquement.
+//
+// Le nom reste libre (c'est votre vocabulaire : "Le magot",
+// "Retraite"…), mais type, sous-type et devise sont des listes
+// fermées : ce sont des données structurantes, pas des étiquettes.
 //
 // Utilisé par : pages/PageComptes.jsx
 
@@ -27,6 +33,8 @@ function CompteForm({ onCreation }) {
   const [nom, setNom] = useState("")
   const [typeCompte, setTypeCompte] = useState("")
   const [sousTypeCompte, setSousTypeCompte] = useState("")
+  const [soldeInitial, setSoldeInitial] = useState("")
+  const [devise, setDevise] = useState(DEVISE_PAR_DEFAUT)
 
   async function gererEnvoi(event) {
     event.preventDefault()
@@ -35,15 +43,20 @@ function CompteForm({ onCreation }) {
       nom,
       typeCompte,
       sousTypeCompte,
+      soldeInitial: soldeInitial || 0,
+      devise,
     })
 
     if (creationReussie) {
       setNom("")
       setTypeCompte("")
       setSousTypeCompte("")
+      setSoldeInitial("")
+      setDevise(DEVISE_PAR_DEFAUT)
     }
   }
 
+  // Changer de type invalide le sous-type précédemment choisi.
   function gererChangementType(event) {
     setTypeCompte(event.target.value)
     setSousTypeCompte("")
@@ -98,6 +111,34 @@ function CompteForm({ onCreation }) {
                 {formaterSousType(sousType)}
               </option>
             ))}
+        </select>
+      </div>
+
+      <div className="formulaire__champ">
+        <label htmlFor="soldeInitialCompte">Solde initial</label>
+        <input
+          id="soldeInitialCompte"
+          type="number"
+          step="0.01"
+          placeholder="0.00"
+          value={soldeInitial}
+          onChange={(event) => setSoldeInitial(event.target.value)}
+        />
+      </div>
+
+      <div className="formulaire__champ">
+        <label htmlFor="deviseCompte">Devise</label>
+        <select
+          id="deviseCompte"
+          value={devise}
+          onChange={(event) => setDevise(event.target.value)}
+          required
+        >
+          {DEVISES.map((deviseOption) => (
+            <option key={deviseOption.code} value={deviseOption.code}>
+              {deviseOption.libelle}
+            </option>
+          ))}
         </select>
       </div>
 

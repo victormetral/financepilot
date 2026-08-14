@@ -1,21 +1,15 @@
 name: FinancePilot CI
 
-# 🟨 NEW
-# Run the workflow on every push and on pull requests targeting main.
 on:
   push:
   pull_request:
     branches:
       - main
-
-# 🟨 NEW
-# Grant the workflow only the permission required to read the repository.
+      
 permissions:
   contents: read
 
 jobs:
-  # 🟨 NEW
-  # Check the React frontend.
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest
@@ -44,8 +38,6 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-  # 🟨 NEW
-  # Start PostgreSQL and test the Node.js backend.
   backend:
     name: Backend tests
     runs-on: ubuntu-latest
@@ -110,6 +102,7 @@ jobs:
             --file=database/schema.sql \
             --file=database/migrations/001_add_account_subtype.sql \
             --file=database/migrations/002_add_user_role.sql
+            --file=database/migrations/003_add_check_constraints.sql
 
       - name: Start backend
         working-directory: backend

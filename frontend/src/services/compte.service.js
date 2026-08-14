@@ -4,8 +4,17 @@ import { API_URL } from "../config/api.js"
 // SERVICE DES COMPTES
 // ============================================================
 //
+// Rôle : centralise les appels HTTP vers l'API Comptes.
+//
 // Depuis Lot 5 : `credentials: "include"` remplace le header
 // Authorization — le cookie httpOnly part automatiquement.
+//
+// creerCompte transmet désormais aussi solde_initial et devise :
+// ces champs existaient côté formulaire de modification mais
+// étaient perdus à la création, le compte partait donc toujours
+// à 0 EUR.
+//
+// Utilisé par : hooks/useComptes.js
 
 async function lireReponse(reponse) {
   const donnees = await reponse.json()
@@ -24,7 +33,13 @@ export async function recupererComptes() {
   return lireReponse(reponse)
 }
 
-export async function creerCompte({ nom, typeCompte, sousTypeCompte }) {
+export async function creerCompte({
+  nom,
+  typeCompte,
+  sousTypeCompte,
+  soldeInitial,
+  devise,
+}) {
   const reponse = await fetch(`${API_URL}/comptes`, {
     method: "POST",
     credentials: "include",
@@ -33,6 +48,8 @@ export async function creerCompte({ nom, typeCompte, sousTypeCompte }) {
       nom,
       type_compte: typeCompte,
       sous_type_compte: sousTypeCompte,
+      solde_initial: Number(soldeInitial ?? 0),
+      devise: devise ?? "EUR",
     }),
   })
 
