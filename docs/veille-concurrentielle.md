@@ -12,8 +12,10 @@
   - suivre les évolutions du marché dans le temps.
 
   Rythme : 20 minutes toutes les deux semaines.
-  À chaque session de veille : scanner les sources (section 5),
+  À chaque session de veille : scanner Feedly (section 5),
   puis ajouter 2-3 lignes datées dans le journal (section 6).
+  Une fois par mois : consultation manuelle des blogs sans RSS
+  et des fiches App Store (section 5, second tableau).
 -->
 
 ---
@@ -51,7 +53,6 @@ Deux tendances de fond :
 - **Forces** : design, catégorisation IA, intégration Apple.
 - **Leçon pour FinancePilot** : le design EST le produit.
   Les gens paient pour la beauté.
-- **Sources de veille** : notes de version App Store, compte X.
 
 ### Monarch Money
 
@@ -61,7 +62,6 @@ Deux tendances de fond :
 - **Forces** : collaboration multi-utilisateurs.
 - **Leçon pour FinancePilot** : la collaboration est un
   différenciateur massif (piste post-Lot 12).
-- **Sources de veille** : monarchmoney.com/blog, r/MonarchMoney.
 
 ### YNAB (You Need A Budget)
 
@@ -71,7 +71,6 @@ Deux tendances de fond :
 - **Forces** : une philosophie claire, communauté très engagée.
 - **Leçon pour FinancePilot** : une *philosophie* vaut plus
   qu'une liste de features.
-- **Sources de veille** : ynab.com/blog, r/ynab.
 
 ### Finary
 
@@ -84,7 +83,6 @@ Deux tendances de fond :
   français.
 - **Leçon pour FinancePilot** : c'est le modèle à observer en
   priorité.
-- **Sources de veille** : finary.com/blog, r/vosfinances.
 
 ### Bankin'
 
@@ -95,7 +93,6 @@ Deux tendances de fond :
 - **Forces** : simplicité d'entrée, adoption massive.
 - **Leçon pour FinancePilot** : la simplicité d'entrée décide
   de l'adoption (justifie le mode Simple/Avancé du Lot 11).
-- **Sources de veille** : blog.bankin.com.
 
 ### Linxo
 
@@ -144,15 +141,44 @@ Deux tendances de fond :
 
 ---
 
-## 5. Sources de veille (dossier Feedly « Finance apps »)
+## 5. Sources de veille
 
-| Type | Sources |
+### Flux Feedly (dossier « Finance apps », configuré le 14/08/2026)
+
+| Flux | Couvre |
 |---|---|
-| Blogs officiels | monarchmoney.com/blog, ynab.com/blog, finary.com/blog, blog.bankin.com |
-| Notes de version | Fiches App Store des 6 apps (section « Nouveautés »), 1×/mois |
+| YNAB Blog | Annonces et méthode YNAB |
+| What's New with YNAB | Changelog produit YNAB |
+| r/ynab | Voix des utilisateurs YNAB |
+| r/MonarchMoney | Nouveautés Monarch relayées + réactions utilisateurs |
+| r/copilotmoney | Nouveautés Copilot relayées + réactions utilisateurs |
+| r/Finary | Voix des utilisateurs Finary (faible volume) |
+| r/vosfinances | Finances perso France, mentions Finary/Bankin'/Linxo |
+| Linxo | Actualités Linxo |
+
+<!--
+  Notes de configuration :
+  - Les blogs Monarch, Finary et Bankin' n'exposent pas de flux
+    RSS détectable ; le RSS Builder et les flux Google News sont
+    payants chez Feedly. Ces blogs passent donc en consultation
+    manuelle (tableau ci-dessous). Les subreddits relaient de
+    toute façon leurs annonces majeures.
+  - Le Medium de Bankin' est inactif (~1 article/mois) : ignoré.
+  - Blogs génériques de finances perso (Esprit Riche,
+    FranceTransactions, Zéro Dette...) volontairement exclus :
+    ce n'est pas de la veille concurrentielle.
+-->
+
+### Consultation manuelle (1×/mois)
+
+| Source | URL / accès |
+|---|---|
+| Blog Monarch | monarchmoney.com/blog |
+| Blog Finary | finary.com/blog |
+| Blog Bankin' | blog.bankin.com |
+| Notes de version | Fiches App Store des 6 apps (section « Nouveautés ») |
 | Lancements | Pages Product Hunt des apps |
-| Voix des utilisateurs | r/ynab, r/MonarchMoney, r/vosfinances |
-| Réseaux | Compte X de Copilot (seul canal actif de l'app) |
+| Copilot | Compte X (seul canal actif de l'app) |
 
 ---
 
@@ -166,4 +192,5 @@ Deux tendances de fond :
 - **2026-08-14** — Initialisation du fichier à partir de
   l'analyse comparative menée en session (recherches web du
   14/08/2026). Feuille de route Lots 9-12 validée en réponse
-  aux manques identifiés.
+  aux manques identifiés. Dossier Feedly « Finance apps »
+  configuré : 8 flux couvrant les 6 apps.
