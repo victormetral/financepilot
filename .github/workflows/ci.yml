@@ -5,7 +5,7 @@ on:
   pull_request:
     branches:
       - main
-      
+
 permissions:
   contents: read
 
@@ -90,6 +90,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes jq postgresql-client
 
+      # Les migrations sont rejouées dans l'ordre numérique :
+      # la CI part d'une base vide à chaque exécution.
       - name: Create database tables
         env:
           PGPASSWORD: financepilot
@@ -103,7 +105,8 @@ jobs:
             --file=database/migrations/001_add_account_subtype.sql \
             --file=database/migrations/002_add_user_role.sql \
             --file=database/migrations/003_add_check_constraints.sql \
-            --file=database/migrations/004_symbole_actif_unique.sql
+            --file=database/migrations/004_symbole_actif_unique.sql \
+            --file=database/migrations/005_add_recurrences.sql
 
       - name: Start backend
         working-directory: backend
