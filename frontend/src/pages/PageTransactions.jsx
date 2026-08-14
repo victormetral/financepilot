@@ -3,9 +3,11 @@
 // ============================================================
 //
 // Utilisé par : App.jsx (route /transactions)
-// Utilise : TransactionForm.jsx, TransactionList.jsx
+// Utilise : SaisieExpress.jsx, TransactionForm.jsx,
+//           TransactionList.jsx
 
 import { useOutletContext } from "react-router-dom"
+import SaisieExpress from "../components/SaisieExpress.jsx"
 import TransactionForm from "../components/TransactionForm.jsx"
 import TransactionList from "../components/TransactionList.jsx"
 
@@ -32,6 +34,20 @@ function PageTransactions() {
       </header>
 
       {message && <p className="page__message">{message}</p>}
+
+      {/*
+        La saisie express passe en premier : c'est le geste
+        quotidien. Le formulaire complet reste dessous pour
+        les cas que la phrase ne couvre pas (date passée,
+        transfert, catégorie non devinée).
+      */}
+      <section className="page__section">
+        <SaisieExpress
+          comptes={comptes}
+          categories={categories}
+          onCreation={gererCreationTransaction}
+        />
+      </section>
 
       <section className="page__section">
         <h2>Ajouter une transaction</h2>
