@@ -426,3 +426,51 @@
   font-weight: 600;
   flex-shrink: 0;
 }
+
+/* ------------------------------------------------------------
+   12. COÛT D'OPPORTUNITÉ
+   ------------------------------------------------------------
+   Volontairement discret : c'est une information de contexte,
+   pas un jugement sur la dépense.
+   ------------------------------------------------------------ */
+
+.transaction__opportunite {
+  font-size: var(--taille-xs);
+  color: var(--accent);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* ------------------------------------------------------------
+   13. RÉGLAGES
+   ------------------------------------------------------------ */
+
+.formulaire__champ--interrupteur label {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-2);
+  font-size: var(--taille-sm);
+  color: var(--texte);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.formulaire__champ--interrupteur input {
+  width: auto;
+  height: auto;
+  accent-color: var(--accent);
+}
+
+.formulaire__aide {
+  font-size: var(--taille-xs);
+  color: var(--texte-faible);
+  line-height: 1.4;
+}
+
+.reglages__apercu {
+  padding: var(--espace-3) var(--espace-4);
+  background: var(--accent-fond);
+  color: var(--accent);
+  border-radius: var(--rayon-md);
+  font-size: var(--taille-sm);
+}

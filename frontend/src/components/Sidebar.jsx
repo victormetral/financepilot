@@ -24,6 +24,7 @@ const LIENS_NAVIGATION = [
   { chemin: "/budgets", libelle: "Budgets", icone: "◔" },
   { chemin: "/objectifs", libelle: "Objectifs", icone: "◎" },
   { chemin: "/investissements", libelle: "Investissements", icone: "▲" },
+  { chemin: "/reglages", libelle: "Réglages", icone: "⚙" },
 ]
 
 function Sidebar({ utilisateur, onDeconnexion }) {

@@ -20,6 +20,7 @@ import PageCategories from "./pages/PageCategories.jsx"
 import PageBudgets from "./pages/PageBudgets.jsx"
 import PageObjectifs from "./pages/PageObjectifs.jsx"
 import PageInvestissements from "./pages/PageInvestissements.jsx"
+import PageReglages from "./pages/PageReglages.jsx"
 
 import { useAuth } from "./hooks/useAuth.js"
 import { useComptes } from "./hooks/useComptes.js"
@@ -94,6 +95,7 @@ function App() {
           <Route path="/budgets" element={<PageBudgets />} />
           <Route path="/objectifs" element={<PageObjectifs />} />
           <Route path="/investissements" element={<PageInvestissements />} />
+          <Route path="/reglages" element={<PageReglages />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
