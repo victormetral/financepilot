@@ -4,11 +4,12 @@
 //
 // Utilisé par : App.jsx (route /transactions)
 // Utilise : SaisieExpress.jsx, TransactionForm.jsx,
-//           TransactionList.jsx
+//           TransactionFiltres.jsx, TransactionList.jsx
 
 import { useOutletContext } from "react-router-dom"
 import SaisieExpress from "../components/SaisieExpress.jsx"
 import TransactionForm from "../components/TransactionForm.jsx"
+import TransactionFiltres from "../components/TransactionFiltres.jsx"
 import TransactionList from "../components/TransactionList.jsx"
 
 function PageTransactions() {
@@ -18,6 +19,9 @@ function PageTransactions() {
     transactions,
     transactionEnModification,
     setTransactionEnModification,
+    filtres,
+    gererChangementFiltre,
+    gererReinitialisationFiltres,
     gererCreationTransaction,
     gererDuplicationTransaction,
     gererModificationTransaction,
@@ -56,6 +60,21 @@ function PageTransactions() {
           comptes={comptes}
           categories={categories}
           onCreation={gererCreationTransaction}
+        />
+      </section>
+
+      {/*
+        Les filtres sont placés juste avant la liste qu'ils
+        pilotent : les éloigner obligerait à faire l'aller-retour
+        entre le haut de la page et les résultats.
+      */}
+      <section className="page__section">
+        <TransactionFiltres
+          filtres={filtres}
+          comptes={comptes}
+          categories={categories}
+          onChangementFiltre={gererChangementFiltre}
+          onReinitialisation={gererReinitialisationFiltres}
         />
       </section>
 

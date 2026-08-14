@@ -5,6 +5,12 @@
 // Depuis Lot 5 : plus de vérification de token en local, le
 // cookie httpOnly gère l'authentification.
 //
+// Depuis Lot 9c : le hook conserve les filtres actifs et
+// recharge la liste auprès du backend à chaque changement.
+// Le filtrage se fait côté serveur, pas en mémoire : la liste
+// est paginée, filtrer localement ne verrait que la page
+// courante et donnerait des résultats faux.
+//
 // Utilisé par : App.jsx
 
 import { useEffect, useState } from "react"
@@ -16,41 +22,111 @@ import {
   supprimerTransaction,
 } from "../services/transaction.service.js"
 
+// Aucun filtre actif : l'état de départ, et la valeur de
+// réinitialisation du bouton « Effacer les filtres ».
+const FILTRES_VIDES = {
+  recherche: "",
+  compteId: "",
+  categorieId: "",
+  typeTransaction: "",
+  dateDebut: "",
+  dateFin: "",
+}
+
 export function useTransactions(utilisateur, setMessage) {
-  const [transactions, setTransactions] = useState([])
+  const [transactionsChargees, setTransactionsChargees] = useState([])
   const [transactionEnModification, setTransactionEnModification] = useState(null)
+  const [filtres, setFiltres] = useState(FILTRES_VIDES)
+
+  /*
+    Sans utilisateur connecté, la liste affichée est vide.
+
+    C'est une valeur dérivée, calculée au rendu : vider l'état
+    dans un effet provoquerait un rendu en cascade, ce que React
+    déconseille.
+  */
+  const transactions = utilisateur ? transactionsChargees : []
 
   // ==========================================================
-  // 1. CHARGEMENT INITIAL
+  // 1. CHARGEMENT AUTOMATIQUE
   // ==========================================================
 
+  /*
+    Recharge la liste à la connexion et à chaque changement
+    de filtre.
+
+    La fonction de chargement est déclarée à l'intérieur de
+    l'effet, et non à l'extérieur : la règle ESLint
+    react-hooks/set-state-in-effect interdit d'appeler depuis un
+    effet une fonction extérieure qui modifie l'état. C'est ce
+    qui explique la ressemblance avec rechargerListe ci-dessous.
+  */
   useEffect(() => {
-    async function chargerTransactions() {
-      if (!utilisateur) {
-        setTransactions([])
-        return
-      }
+    if (!utilisateur) {
+      return
+    }
 
+    async function charger() {
       try {
-        const resultat = await recupererTransactions()
+        const resultat = await recupererTransactions(filtres)
 
         if (resultat.ok) {
-          setTransactions(resultat.donnees.transactions)
-        } else {
-          setTransactions([])
-          setMessage(resultat.donnees.message)
+          setTransactionsChargees(resultat.donnees.transactions)
+          return
         }
+
+        setTransactionsChargees([])
+        setMessage(resultat.donnees.message)
       } catch {
-        setTransactions([])
+        setTransactionsChargees([])
         setMessage("Impossible de récupérer les transactions.")
       }
     }
 
-    chargerTransactions()
-  }, [utilisateur, setMessage])
+    charger()
+  }, [utilisateur, filtres, setMessage])
+
+  /*
+    Même chargement, déclenché manuellement après une création
+    ou une modification. Les filtres actifs sont conservés,
+    sinon créer une transaction pendant une recherche ferait
+    réapparaître la liste entière.
+  */
+  async function rechargerListe() {
+    try {
+      const resultat = await recupererTransactions(filtres)
+
+      if (resultat.ok) {
+        setTransactionsChargees(resultat.donnees.transactions)
+      }
+    } catch {
+      setMessage("Impossible de récupérer les transactions.")
+    }
+  }
 
   // ==========================================================
-  // 2. CRÉATION
+  // 2. GESTION DES FILTRES
+  // ==========================================================
+
+  /*
+    Modifie un seul filtre en conservant les autres.
+
+    L'effet ci-dessus se déclenche alors automatiquement :
+    aucun bouton « Rechercher » n'est nécessaire.
+  */
+  function gererChangementFiltre(nomFiltre, valeur) {
+    setFiltres((filtresActuels) => ({
+      ...filtresActuels,
+      [nomFiltre]: valeur,
+    }))
+  }
+
+  function gererReinitialisationFiltres() {
+    setFiltres(FILTRES_VIDES)
+  }
+
+  // ==========================================================
+  // 3. CRÉATION
   // ==========================================================
 
   async function gererCreationTransaction(donneesFormulaire) {
@@ -62,11 +138,7 @@ export function useTransactions(utilisateur, setMessage) {
         return false
       }
 
-      const resultatListe = await recupererTransactions()
-
-      if (resultatListe.ok) {
-        setTransactions(resultatListe.donnees.transactions)
-      }
+      await rechargerListe()
 
       setMessage("Transaction créée.")
       return true
@@ -77,7 +149,7 @@ export function useTransactions(utilisateur, setMessage) {
   }
 
   // ==========================================================
-  // 3. DUPLICATION
+  // 4. DUPLICATION
   // ==========================================================
 
   /*
@@ -124,7 +196,7 @@ export function useTransactions(utilisateur, setMessage) {
   }
 
   // ==========================================================
-  // 4. MODIFICATION
+  // 5. MODIFICATION
   // ==========================================================
 
   async function gererModificationTransaction(transactionId, donneesFormulaire) {
@@ -136,11 +208,7 @@ export function useTransactions(utilisateur, setMessage) {
         return false
       }
 
-      const resultatListe = await recupererTransactions()
-
-      if (resultatListe.ok) {
-        setTransactions(resultatListe.donnees.transactions)
-      }
+      await rechargerListe()
 
       setTransactionEnModification(null)
       setMessage("Transaction modifiée avec succès.")
@@ -152,7 +220,7 @@ export function useTransactions(utilisateur, setMessage) {
   }
 
   // ==========================================================
-  // 5. SUPPRESSION
+  // 6. SUPPRESSION
   // ==========================================================
 
   async function gererSuppressionTransaction(transactionId) {
@@ -160,7 +228,7 @@ export function useTransactions(utilisateur, setMessage) {
       const resultat = await supprimerTransaction(transactionId)
 
       if (resultat.ok) {
-        setTransactions((transactionsActuelles) =>
+        setTransactionsChargees((transactionsActuelles) =>
           transactionsActuelles.filter(
             (transaction) => transaction.id !== transactionId
           )
@@ -179,6 +247,9 @@ export function useTransactions(utilisateur, setMessage) {
     transactions,
     transactionEnModification,
     setTransactionEnModification,
+    filtres,
+    gererChangementFiltre,
+    gererReinitialisationFiltres,
     gererCreationTransaction,
     gererDuplicationTransaction,
     gererModificationTransaction,
