@@ -34,6 +34,13 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      # Tests unitaires des fonctions pures (finance, saisie
+      # express). Placés avant le build : inutile de compiler
+      # si un calcul est faux.
+      - name: Run frontend unit tests
+        working-directory: frontend
+        run: npm test
+
       - name: Build frontend
         working-directory: frontend
         run: npm run build
@@ -85,11 +92,19 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      # Calcul des dates de récurrence : ni base ni serveur
+      # nécessaires, donc testé avant tout le reste.
+      - name: Run backend unit tests
+        working-directory: backend
+        run: npm test
+
       - name: Install test tools
         run: |
           sudo apt-get update
           sudo apt-get install --yes jq postgresql-client
-      
+
+      # Les migrations sont rejouées dans l'ordre numérique :
+      # la CI part d'une base vide à chaque exécution.
       - name: Create database tables
         env:
           PGPASSWORD: financepilot
