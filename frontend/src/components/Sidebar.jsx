@@ -6,11 +6,12 @@
 // affichage de l'utilisateur connecté, bascule de thème et
 // déconnexion. Persistante sur toutes les pages protégées.
 //
-// L'ordre des liens suit le parcours logique d'utilisation :
-// on crée d'abord ses comptes, puis ses catégories, avant de
-// pouvoir saisir des transactions et fixer des budgets.
-// Les récurrences suivent immédiatement les transactions :
-// ce sont des transactions programmées à l'avance.
+// Les liens sont groupés par fréquence d'usage et non par
+// ordre de création. L'ordre précédent — comptes, puis
+// catégories, puis transactions — suivait le parcours du
+// premier lancement : juste une fois, faux les cinq cents
+// suivantes. Ce qu'on ouvre chaque semaine passe donc devant
+// ce qu'on configure une fois.
 //
 // Utilisé par : Layout.jsx
 // Utilise : hooks/useTheme.js, react-router-dom
@@ -18,16 +19,39 @@
 import { NavLink } from "react-router-dom"
 import { useTheme } from "../hooks/useTheme.js"
 
-const LIENS_NAVIGATION = [
-  { chemin: "/", libelle: "Tableau de bord", icone: "◈" },
-  { chemin: "/comptes", libelle: "Comptes", icone: "▤" },
-  { chemin: "/categories", libelle: "Catégories", icone: "◫" },
-  { chemin: "/transactions", libelle: "Transactions", icone: "≡" },
-  { chemin: "/recurrences", libelle: "Récurrences", icone: "↻" },
-  { chemin: "/budgets", libelle: "Budgets", icone: "◔" },
-  { chemin: "/objectifs", libelle: "Objectifs", icone: "◎" },
-  { chemin: "/investissements", libelle: "Investissements", icone: "▲" },
-  { chemin: "/reglages", libelle: "Réglages", icone: "⚙" },
+/*
+  Un groupe sans titre reste sans en-tête à l'écran : le
+  tableau de bord est le point d'entrée, le coiffer d'un
+  intitulé n'apporterait rien.
+*/
+const GROUPES_NAVIGATION = [
+  {
+    titre: null,
+    liens: [{ chemin: "/", libelle: "Tableau de bord", icone: "◈" }],
+  },
+  {
+    titre: "Au quotidien",
+    liens: [
+      { chemin: "/transactions", libelle: "Transactions", icone: "≡" },
+      { chemin: "/recurrences", libelle: "Récurrences", icone: "↻" },
+      { chemin: "/budgets", libelle: "Budgets", icone: "◔" },
+    ],
+  },
+  {
+    titre: "Patrimoine",
+    liens: [
+      { chemin: "/comptes", libelle: "Comptes", icone: "▤" },
+      { chemin: "/investissements", libelle: "Investissements", icone: "▲" },
+      { chemin: "/objectifs", libelle: "Objectifs", icone: "◎" },
+    ],
+  },
+  {
+    titre: "Configuration",
+    liens: [
+      { chemin: "/categories", libelle: "Catégories", icone: "◫" },
+      { chemin: "/reglages", libelle: "Réglages", icone: "⚙" },
+    ],
+  },
 ]
 
 function Sidebar({ utilisateur, onDeconnexion }) {
@@ -47,20 +71,35 @@ function Sidebar({ utilisateur, onDeconnexion }) {
       </div>
 
       <nav className="sidebar__navigation">
-        {LIENS_NAVIGATION.map((lien) => (
-          <NavLink
-            key={lien.chemin}
-            to={lien.chemin}
-            end={lien.chemin === "/"}
-            className={({ isActive }) =>
-              isActive ? "sidebar__lien sidebar__lien--actif" : "sidebar__lien"
-            }
-          >
-            <span className="sidebar__icone" aria-hidden="true">
-              {lien.icone}
-            </span>
-            {lien.libelle}
-          </NavLink>
+        {GROUPES_NAVIGATION.map((groupe, indexGroupe) => (
+          /*
+            La clé est le titre quand il existe, l'index sinon :
+            un seul groupe est sans titre, il ne peut donc pas
+            entrer en collision.
+          */
+          <div key={groupe.titre ?? indexGroupe} className="sidebar__groupe">
+            {groupe.titre && (
+              <span className="sidebar__groupe-titre">{groupe.titre}</span>
+            )}
+
+            {groupe.liens.map((lien) => (
+              <NavLink
+                key={lien.chemin}
+                to={lien.chemin}
+                end={lien.chemin === "/"}
+                className={({ isActive }) =>
+                  isActive
+                    ? "sidebar__lien sidebar__lien--actif"
+                    : "sidebar__lien"
+                }
+              >
+                <span className="sidebar__icone" aria-hidden="true">
+                  {lien.icone}
+                </span>
+                {lien.libelle}
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
 
