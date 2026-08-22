@@ -2,20 +2,26 @@
 // HOOK DES TRANSACTIONS
 // ============================================================
 //
+// Rôle : charger la liste des transactions et gérer les
+// opérations qui la modifient — création, duplication,
+// modification, suppression.
+//
 // Depuis Lot 5 : plus de vérification de token en local, le
 // cookie httpOnly gère l'authentification.
 //
-// Depuis Lot 9c : le hook conserve les filtres actifs et
-// recharge la liste auprès du backend à chaque changement.
-// Le filtrage se fait côté serveur, pas en mémoire : la liste
-// est paginée, filtrer localement ne verrait que la page
-// courante et donnerait des résultats faux.
+// Depuis Lot 9c : le filtrage se fait côté serveur, pas en
+// mémoire. La liste est paginée : filtrer localement ne verrait
+// que la page courante et donnerait des résultats faux.
 //
 // Depuis Lot 9d : rechargerListe est exposée sous le nom
 // rechargerTransactions, pour que la génération automatique
 // des récurrences puisse rafraîchir la liste après coup.
 //
+// L'état des filtres vit dans useTransactionsFiltres.js.
+//
 // Utilisé par : App.jsx
+// Utilise : services/transaction.service.js,
+//           hooks/useTransactionsFiltres.js
 
 import { useCallback, useEffect, useState } from "react"
 
@@ -26,21 +32,17 @@ import {
   supprimerTransaction,
 } from "../services/transaction.service.js"
 
-// Aucun filtre actif : l'état de départ, et la valeur de
-// réinitialisation du bouton « Effacer les filtres ».
-const FILTRES_VIDES = {
-  recherche: "",
-  compteId: "",
-  categorieId: "",
-  typeTransaction: "",
-  dateDebut: "",
-  dateFin: "",
-}
+import { useTransactionsFiltres } from "./useTransactionsFiltres.js"
 
 export function useTransactions(utilisateur, setMessage) {
   const [transactionsChargees, setTransactionsChargees] = useState([])
   const [transactionEnModification, setTransactionEnModification] = useState(null)
-  const [filtres, setFiltres] = useState(FILTRES_VIDES)
+
+  const {
+    filtres,
+    gererChangementFiltre,
+    gererReinitialisationFiltres,
+  } = useTransactionsFiltres()
 
   /*
     Sans utilisateur connecté, la liste affichée est vide.
@@ -115,28 +117,7 @@ export function useTransactions(utilisateur, setMessage) {
   }, [filtres, setMessage])
 
   // ==========================================================
-  // 2. GESTION DES FILTRES
-  // ==========================================================
-
-  /*
-    Modifie un seul filtre en conservant les autres.
-
-    L'effet ci-dessus se déclenche alors automatiquement :
-    aucun bouton « Rechercher » n'est nécessaire.
-  */
-  function gererChangementFiltre(nomFiltre, valeur) {
-    setFiltres((filtresActuels) => ({
-      ...filtresActuels,
-      [nomFiltre]: valeur,
-    }))
-  }
-
-  function gererReinitialisationFiltres() {
-    setFiltres(FILTRES_VIDES)
-  }
-
-  // ==========================================================
-  // 3. CRÉATION
+  // 2. CRÉATION
   // ==========================================================
 
   async function gererCreationTransaction(donneesFormulaire) {
@@ -159,7 +140,7 @@ export function useTransactions(utilisateur, setMessage) {
   }
 
   // ==========================================================
-  // 4. DUPLICATION
+  // 3. DUPLICATION
   // ==========================================================
 
   /*
@@ -206,7 +187,7 @@ export function useTransactions(utilisateur, setMessage) {
   }
 
   // ==========================================================
-  // 5. MODIFICATION
+  // 4. MODIFICATION
   // ==========================================================
 
   async function gererModificationTransaction(transactionId, donneesFormulaire) {
@@ -230,9 +211,14 @@ export function useTransactions(utilisateur, setMessage) {
   }
 
   // ==========================================================
-  // 6. SUPPRESSION
+  // 5. SUPPRESSION
   // ==========================================================
 
+  /*
+    Retire la ligne de l'état local plutôt que de recharger la
+    liste : la suppression est immédiate à l'écran, et une
+    requête de moins part au serveur.
+  */
   async function gererSuppressionTransaction(transactionId) {
     try {
       const resultat = await supprimerTransaction(transactionId)
@@ -243,11 +229,9 @@ export function useTransactions(utilisateur, setMessage) {
             (transaction) => transaction.id !== transactionId
           )
         )
-
-        setMessage(resultat.donnees.message)
-      } else {
-        setMessage(resultat.donnees.message)
       }
+
+      setMessage(resultat.donnees.message)
     } catch {
       setMessage("Impossible de supprimer la transaction.")
     }
