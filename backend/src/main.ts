@@ -3,6 +3,8 @@
  *  Crée l'appli, branche Swagger, démarre le serveur
  * ========================================================== */
 
+// Lit backend/.env et remplit process.env (en premier, avant tout le reste)
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
