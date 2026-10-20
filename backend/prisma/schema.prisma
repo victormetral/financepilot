@@ -1,13 +1,17 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// ==========================================================
+//  schema.prisma : la description de la base
+//  Les tables (models), et le code TypeScript généré à partir d'elles
+// ==========================================================
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
+// Générateur : écrit le client TypeScript dans src/generated/prisma
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "../src/generated/prisma"
 }
 
+// Source de données : une base PostgreSQL (adresse dans prisma7.config.ts)
 datasource db {
   provider = "postgresql"
 }
+
+// Les tables arriveront ici au Sprint 1 (model User, model Account…)
