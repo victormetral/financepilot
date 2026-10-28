@@ -167,4 +167,6 @@ npm run start:dev
 
 ---
 
-Victor Metral — Ada Tech School
+**Victor Metral** — Ada Tech School, Lyon
+En recherche d'une alternance de 12 mois à partir de janvier 2027 — développement fullstack ou backend, full remote ou France.
+[LinkedIn](https://linkedin.com/in/victor-metral-dev) · [GitHub](https://github.com/victormetral)
