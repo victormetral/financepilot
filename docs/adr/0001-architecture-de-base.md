@@ -1,6 +1,6 @@
 # ADR-001 — Architecture de base de FinancePilot
 
-- **Date** : 12/10/2026
+- **Date** : 12/10/2026, mise à jour le 28/10/2026 (couches du front, pourquoi cette stack)
 - **Statut** : proposée
 - **Remplace** : la version du 03/10/2026 (cœur hexagonal), archivée dans le document 13c du Drive
 
@@ -43,18 +43,63 @@ flowchart LR
 ### Architecture logicielle
 
 - **Back** : découpé en modules par domaine (auth, comptes, partage, projection, import, abonnement). Dans chaque module, trois couches : contrôleur (reçoit la requête) → service (règles métier) → repository (accès à la base). Chaque couche n'appelle que celle du dessous. Un module ne lit jamais les données d'un autre : il passe par son service.
-- **Front** : des pages (un écran), des composants (des briques réutilisables) et des services (les appels à l'API).
+- **Front** : trois couches, dans un seul sens : vue → store → service.
+  - vue : les composants React, qui affichent l'écran et captent les actions ;
+  - store : l'état partagé entre les écrans (voir ADR-005) ;
+  - service : les appels à l'API, seule couche qui parle au back.
+- Dans les deux cas, le couplage va dans un seul sens : une couche ne connaît jamais celle qui l'appelle.
 
 ### Stack
 
-TypeScript partout, React avec Vite, NestJS, PostgreSQL, Prisma.
+TypeScript partout, React avec Vite, TanStack Query, NestJS, PostgreSQL, Prisma.
 
-## Pourquoi
+## Pourquoi cette architecture
 
 1. **Mon contexte** : seul, débutant sur la stack, avec cinq mois devant moi. L'option 2 est celle que je peux livrer à temps.
 2. **Je connais déjà les couches** : je peux me concentrer sur TypeScript, NestJS et le métier.
 3. **En choisissant moi-même mes couches**, je comprendrai les principes SOLID, au lieu d'appliquer une structure toute faite.
 4. **Elle coche ce qu'attend le titre**, et c'est ce que font Finary et Monarch : un back principal et un front séparé.
+
+## Pourquoi cette stack
+
+### TypeScript
+
+- Les erreurs de type sont vues dans l'éditeur, avant l'exécution (par exemple un montant reçu en texte « 100 » au lieu du nombre 100).
+- Front et back dans le même langage → ils partagent les mêmes types (par exemple `Account`) ; un champ changé côté back casse la compilation du front, pas l'application.
+- Un seul langage à maîtriser, pour un développeur seul.
+- NestJS et Prisma sont conçus pour TypeScript ; Angular, prévu dans ma roadmap, l'impose.
+- Très demandé en entreprise.
+- Limite : les types disparaissent à l'exécution → les données qui arrivent de l'extérieur sont validées à l'exécution.
+
+### React
+
+- Déjà pratiqué sur plusieurs projets, dont la v0 → mon effort d'apprentissage va à TypeScript et NestJS.
+- La bibliothèque front la plus utilisée → beaucoup d'offres d'emploi, de documentation et de bibliothèques (TanStack Query, React Router, i18next).
+- Je prépare les certifications React, Junior puis Intermédiaire → le projet me sert d'entraînement.
+- Limite : React ne gère que l'affichage → routage, état et traductions viennent de bibliothèques à choisir.
+
+### NestJS
+
+- Il impose une organisation en modules, contrôleurs et services, qui colle à mon architecture en couches.
+- Injection de dépendances : Nest fabrique les objets et les fournit → en test, je remplace la vraie base par une imitation (un mock), sans toucher au service.
+- Écrit en TypeScript ; la documentation Swagger est générée depuis le code.
+- Il tourne au-dessus d'Express, que je connais.
+- Mêmes concepts que Spring (Java) et Angular → compétences transférables.
+- Limite : plus de concepts à apprendre, et plus de code pour un petit projet.
+
+### Prisma
+
+- Un seul fichier, `schema.prisma` → les migrations (les tables) et un client TypeScript typé.
+- Les requêtes sont vérifiées à la compilation : pas de colonne mal orthographiée.
+- Les migrations sont versionnées dans Git et rejouées à l'identique sur chaque machine et en production.
+- Les requêtes sont paramétrées par défaut → protection contre les injections SQL.
+- Limite : le SQL doit rester compris → chaque requête Prisma est écrite avec son équivalent SQL ; le SQL brut reste possible pour les cas complexes.
+
+### PostgreSQL
+
+- Base relationnelle : transactions, clés étrangères, contraintes → des données financières cohérentes.
+- `numeric` pour des montants exacts ; `JSONB` pour les données semi-structurées des imports.
+- Libre et gratuit, proposé par les principaux hébergeurs.
 
 ## Conséquences
 
