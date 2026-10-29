@@ -100,6 +100,7 @@ TypeScript partout, React avec Vite, TanStack Query, NestJS, PostgreSQL, Prisma.
 - Base relationnelle : transactions, clés étrangères, contraintes → des données financières cohérentes.
 - `numeric` pour des montants exacts ; `JSONB` pour les données semi-structurées des imports.
 - Libre et gratuit, proposé par les principaux hébergeurs.
+- Version 18 → la plus récente stable (support jusqu'en novembre 2030), avec `uuidv7()` : des identifiants triés par date de création.
 
 ## Conséquences
 
