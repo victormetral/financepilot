@@ -108,7 +108,7 @@ flowchart LR
 |---|---|
 | Langage | TypeScript, partout |
 | Back | NestJS, Swagger |
-| Base | PostgreSQL 17 dans Docker, Prisma 7 |
+| Base | PostgreSQL 18 dans Docker, Prisma 7 |
 | Tests | Vitest |
 | Front | React, Vite — à venir |
 | Paiement | Stripe — à venir |
@@ -144,7 +144,7 @@ flowchart LR
 
 ## 5. Lancer le socle (branche `dev`)
 
-Prérequis : Node.js (testé avec la version 26) et Docker.
+Prérequis : Node.js 26 (version figée dans `.nvmrc`) et Docker.
 
 ```bash
 git clone https://github.com/victormetral/financepilot.git

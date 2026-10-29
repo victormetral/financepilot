@@ -3,7 +3,7 @@
  *  Déclare les contrôleurs et les services de l'appli
  * ========================================================== */
 
-// Autres modules utilisés : la base (PrismaModule), puis AuthModule, AccountsModule au Sprint 1
+// Imports : le décorateur Module, le contrôleur, le service et le module de la base
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
