@@ -1,0 +1,72 @@
+# ==========================================================
+#  ci.yml : intégration continue (CI)
+#  À chaque push et PR vers dev ou main : installe, vérifie,
+#  teste et compile le back
+# ==========================================================
+
+name: CI
+
+# Quand la CI se lance
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  # Un job = une machine Linux neuve, qui exécute les étapes dans l'ordre
+  backend:
+    runs-on: ubuntu-latest
+
+    # Toutes les commandes se lancent dans le dossier backend/
+    defaults:
+      run:
+        working-directory: backend
+
+    # Une base PostgreSQL 18 jetable, pour les tests de bout en bout
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: financepilot
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: financepilot
+        ports:
+          - 5433:5432
+        # Attend que la base soit prête avant de continuer
+        options: >-
+          --health-cmd "pg_isready -U financepilot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # Adresse de la base jetable
+    env:
+      DATABASE_URL: postgresql://financepilot:ci_password@localhost:5433/financepilot
+
+    steps:
+      # Récupère le code du dépôt
+      - uses: actions/checkout@v7
+
+      # Installe Node, à la version écrite dans .nvmrc
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # Installe exactement les versions du package-lock.json
+      - run: npm ci
+
+      # Génère le client Prisma (le code d'accès à la base)
+      - run: npx prisma generate
+
+      # Vérifie le style et les erreurs courantes
+      - run: npm run lint
+
+      # Tests unitaires, puis de bout en bout
+      - run: npm test
+      - run: npm run test:e2e
+
+      # Vérifie que le projet compile
+      - run: npm run build
