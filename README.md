@@ -1,5 +1,7 @@
 # FinancePilot
 
+[![CI](https://github.com/victormetral/financepilot/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/victormetral/financepilot/actions/workflows/ci.yml)
+
 Application de finances personnelles : voir tous ses comptes au même endroit, sans connecter sa banque.
 
 Refonte menée dans le cadre du titre RNCP 6 « Concepteur Développeur d'Applications » (CDA), à Ada Tech School.
