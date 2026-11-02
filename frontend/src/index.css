@@ -1,0 +1,18 @@
+/* ==========================================================
+ *  index.css : le CSS global de l'appli
+ *  Charge Tailwind, nos variables Figma, puis le style de base
+ * ========================================================== */
+
+/* Tailwind : ses classes, et sa remise à zéro des navigateurs */
+@import "tailwindcss";
+
+/* Nos variables Figma : couleurs, polices, tailles */
+@import "./styles/tokens.css";
+
+/* Style de base de toute la page : le fond et la couleur du texte */
+@layer base {
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-primary);
+  }
+}

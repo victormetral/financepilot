@@ -5,7 +5,7 @@
 
 // Composant racine : pour l'instant, juste le nom de l'appli
 function App() {
-  return <h1>FinancePilot</h1>;
+  return <h1 className="font-serif text-display-total p-6">FinancePilot</h1>;
 }
 
 export default App;
