@@ -10,7 +10,7 @@ Refonte menée dans le cadre du titre RNCP 6 « Concepteur Développeur d'Applic
 > **La version qui fonctionne est dans [financepilot-v0](https://github.com/victormetral/financepilot-v0).**
 > Ce dépôt-ci contient la refonte : conçue, socle en place, aucune fonctionnalité encore codée.
 
-| Dépôt | Contenu | État au 25/10/2026 |
+| Dépôt | Contenu | État au 02/11/2026 |
 |---|---|---|
 | [**financepilot-v0**](https://github.com/victormetral/financepilot-v0) | Première version, réalisée en autonomie | Fonctionne. 59 tests unitaires et 5 scripts d'intégration, relancés à chaque envoi de code (intégration continue) |
 | **financepilot** (ici) | Refonte CDA, en TypeScript | Conception de la V1 faite, socle technique en cours, aucune fonctionnalité codée |
@@ -111,8 +111,9 @@ flowchart LR
 | Langage | TypeScript, partout |
 | Back | NestJS, Swagger |
 | Base | PostgreSQL 18 dans Docker, Prisma 7 |
-| Tests | Vitest |
-| Front | React, Vite — à venir |
+| Tests | Vitest, Testing Library |
+| Front | React 19, Vite 8 |
+| Intégration continue | GitHub Actions |
 | Paiement | Stripe — à venir |
 
 ---
@@ -126,8 +127,10 @@ flowchart LR
 - ✅ API NestJS qui démarre, documentation Swagger sur `/api`
 - ✅ Vitest configuré, un premier test qui passe
 - ✅ PostgreSQL dans Docker, Prisma relié à NestJS (les tables arrivent au Sprint 1)
-- ⏳ intégration continue avec GitHub Actions
-- ⏳ front React + Vite, en français et en anglais
+- ✅ intégration continue avec GitHub Actions : lint, tests et build du back et du front, à chaque push
+- ✅ front React + Vite qui démarre, un premier test qui passe
+- ⏳ couleurs et polices des maquettes, en thème clair et sombre
+- ⏳ front en français et en anglais
 - ⏳ mise en ligne
 
 **Conception** (outil de pilotage privé) :
@@ -135,7 +138,7 @@ flowchart LR
 - ✅ 38 user stories pour la V1, estimées et priorisées : 191 points d'effort, dont 92 indispensables (*Must*)
 - ✅ modèle de données en trois niveaux : conceptuel, logique, physique (MCD, MLD, MPD)
 - ✅ Sprint 1 préparé
-- ⏳ maquettes Figma
+- ✅ maquettes Figma du Sprint 1 et design system, en thème clair et sombre
 
 *Points d'effort* : une estimation relative de la difficulté, pas des heures.
 
@@ -165,7 +168,17 @@ npm run start:dev
 - `docker compose up -d` → démarre PostgreSQL, sur le port 5433.
 - `npx prisma generate` → génère le code d'accès à la base.
 - `npm run start:dev` → l'API répond sur http://localhost:3000, Swagger sur http://localhost:3000/api.
-- `npm test` → lance les tests.
+
+Puis le front, dans un deuxième terminal, depuis la racine du dépôt :
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+- `npm run dev` → le front répond sur http://localhost:5173.
+- `npm test` → lance les tests, dans `backend/` comme dans `frontend/`.
 
 ---
 
