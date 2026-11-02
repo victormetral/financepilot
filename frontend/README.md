@@ -1,32 +1,19 @@
-# React + TypeScript + Vite
+# FinancePilot — Front
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Interface web de FinancePilot : React 19, Vite 8, TypeScript, tests Vitest et Testing Library.
 
-Currently, two official plugins are available:
+Installation et lancement → voir le [README principal](../README.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Commandes
 
-## React Compiler
+| Commande | Rôle |
+|---|---|
+| `npm run dev` | lance le front sur http://localhost:5173, qui se recharge à chaque modification |
+| `npm test` | tests (Vitest, Testing Library) |
+| `npm run lint` | analyse du code (oxlint) |
+| `npm run build` | vérifie les types, puis fabrique l'appli dans `dist/` |
+| `npm run preview` | sert la version fabriquée, pour la vérifier avant la mise en ligne |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Architecture
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Vue → store → service ([ADR-001](../docs/adr/0001-architecture-de-base.md)).
