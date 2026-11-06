@@ -26,6 +26,7 @@
 - Les espacements de Figma (4 à 24 px) correspondent déjà à ceux de Tailwind : `p-1` = 4 px … `p-6` = 24 px.
 - Thème sombre par défaut (`color-scheme: dark`) ; chaque couleur porte ses deux valeurs avec `light-dark(clair, sombre)`, pour l'option claire à venir.
 - Pas de CSS Modules en plus : la documentation de Tailwind déconseille de mélanger les deux.
+- Cas complexes (animations, par exemple la fourchette lumineuse) → une feuille CSS locale qui lit les mêmes variables (`var(--color-…)`) ; Tailwind pour le reste (conseil de Dimitri, 04/11).
 
 ## Pourquoi
 
@@ -42,4 +43,5 @@
 
 - Tailwind cache le CSS → pour chaque classe, savoir dire quelle propriété CSS elle produit (la documentation l'affiche pour chacune) ;
 - des listes de classes trop longues → découper en petits composants ;
-- les tests ne vérifient jamais les classes : ils cherchent les éléments par leur rôle (Testing Library).
+- les tests ne vérifient jamais les classes : ils cherchent les éléments par leur rôle (Testing Library) ;
+- une forte dépendance à Tailwind, dont l'éditeur est fragile → une sortie reste possible, car les variables Figma restent du CSS standard.

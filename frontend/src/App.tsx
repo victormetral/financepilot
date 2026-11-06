@@ -3,9 +3,19 @@
 //  Affiche l'application ; les pages arriveront au Sprint 1
 // ==========================================================
 
-// Composant racine : pour l'instant, juste le nom de l'appli
+// Le hook qui donne accès aux traductions
+import { useTranslation } from 'react-i18next';
+
+// Composant racine : le nom de l'appli et son slogan, dans la langue choisie
 function App() {
-  return <h1 className="font-serif text-display-total p-6">FinancePilot</h1>;
+  const { t } = useTranslation();
+
+  return (
+    <main className="p-6">
+      <h1 className="font-serif text-display-total">{t('app.name')}</h1>
+      <p className="text-body-md text-secondary">{t('app.tagline')}</p>
+    </main>
+  );
 }
 
 export default App;
