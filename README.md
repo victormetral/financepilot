@@ -4,13 +4,13 @@
 
 Application de finances personnelles : voir tous ses comptes au même endroit, sans connecter sa banque.
 
-Refonte menée dans le cadre du titre RNCP 6 « Concepteur Développeur d'Applications » (CDA), à Ada Tech School.
+Refonte menée dans le cadre du titre RNCP 6 "Concepteur Développeur d'Applications" (CDA), à Ada Tech School.
 
 > [!IMPORTANT]
 > **La version qui fonctionne est dans [financepilot-v0](https://github.com/victormetral/financepilot-v0).**
 > Ce dépôt-ci contient la refonte : conçue, socle en place, aucune fonctionnalité encore codée.
 
-| Dépôt | Contenu | État au 02/11/2026 |
+| Dépôt | Contenu | État au 17/11/2026 |
 |---|---|---|
 | [**financepilot-v0**](https://github.com/victormetral/financepilot-v0) | Première version, réalisée en autonomie | Fonctionne. 59 tests unitaires et 5 scripts d'intégration, relancés à chaque envoi de code (intégration continue) |
 | **financepilot** (ici) | Refonte CDA, en TypeScript | Conception de la V1 faite, socle technique en cours, aucune fonctionnalité codée |
@@ -29,7 +29,7 @@ La v0 fonctionne. C'est la démarche qui change : concevoir d'abord, coder ensui
 | Architecture | Choix expliqués dans le README | Quatre options comparées, décision écrite avant le code |
 | Stack | JavaScript, Express, PostgreSQL sans ORM | TypeScript, NestJS, PostgreSQL avec Prisma |
 
-- *User story* : une fonctionnalité décrite du point de vue de l'utilisateur (« je veux… afin de… »).
+- *User story* : une fonctionnalité décrite du point de vue de l'utilisateur ("je veux… afin de…").
 - *Merise* : méthode de conception de bases de données → le métier d'abord, les tables ensuite.
 - *ORM* : outil qui traduit le code en requêtes SQL. Ici, Prisma.
 
@@ -129,8 +129,10 @@ flowchart LR
 - ✅ PostgreSQL dans Docker, Prisma relié à NestJS (les tables arrivent au Sprint 1)
 - ✅ intégration continue avec GitHub Actions : lint, tests et build du back et du front, à chaque push
 - ✅ front React + Vite qui démarre, un premier test qui passe
-- ⏳ couleurs et polices des maquettes, en thème clair et sombre
-- ⏳ front en français et en anglais
+- ✅ couleurs et polices des maquettes, en thème clair et sombre
+- ✅ front en français et en anglais
+- ✅ back dans Docker : la base et l'API se lancent avec une seule commande
+- ⏳ front : passage de React à Angular (décidé le 15/11/2026)
 - ⏳ mise en ligne
 
 **Conception** (outil de pilotage privé) :
@@ -142,7 +144,7 @@ flowchart LR
 
 *Points d'effort* : une estimation relative de la difficulté, pas des heures.
 
-**Prochaine étape — Sprint 1** : « Je crée mon compte, je déclare mes comptes, je vois mon total. »
+**Prochaine étape — Sprint 1** : "Je crée mon compte, je déclare mes comptes, je vois mon total."
 5 user stories, 28 points → créer un compte, se connecter, se déconnecter, déclarer un compte, voir tous ses comptes.
 
 ---
@@ -179,6 +181,16 @@ npm run dev
 
 - `npm run dev` → le front répond sur http://localhost:5173.
 - `npm test` → lance les tests, dans `backend/` comme dans `frontend/`.
+
+### Avec Docker : base et API
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
+
+- → PostgreSQL et l'API démarrent dans deux conteneurs ; l'API attend que la base soit prête.
+- → API sur http://localhost:3000, Swagger sur http://localhost:3000/api.
 
 ---
 
