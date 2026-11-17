@@ -1,0 +1,19 @@
+# ==========================================================
+#  .dockerignore : ce que Docker ne copie pas dans l'image
+#  Plus léger, plus rapide, et aucun secret dans l'image
+# ==========================================================
+
+# Paquets installés sur le Mac (réinstallés dans l'image par npm ci)
+node_modules
+
+# Code compilé et client Prisma (refabriqués dans l'image)
+dist
+src/generated
+
+# Secrets : jamais dans une image
+.env
+
+# Inutiles pour faire tourner l'API
+test
+coverage
+*.md
