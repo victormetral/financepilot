@@ -26,8 +26,9 @@ ENV NODE_ENV=production
 
 # Seulement les paquets utiles en production
 # Choix pro : aucun outil de construction dans l'image finale
+# Choix pro : vider le cache dans le même RUN (un calque ne rétrécit jamais après coup)
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Le code compilé, récupéré de l'étape A
 COPY --from=build /app/dist ./dist
