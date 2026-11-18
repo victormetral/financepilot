@@ -1,8 +1,7 @@
-<!-- Premier écran : le nom de l'appli et sa promesse -->
-<!-- (textes provisoires : ils passeront dans fr.json et en.json à l'étape 3f) -->
+<!-- Premier écran : le nom de l'appli et sa promesse, dans la langue en cours -->
 <main class="p-6">
-  <h1 class="font-serif text-display-total">{{ title() }}</h1>
-  <p class="text-body-md text-secondary">Tous vos comptes au même endroit, sans jamais connecter votre banque.</p>
+  <h1 class="font-serif text-display-total">{{ 'app.name' | translate }}</h1>
+  <p class="text-body-md text-secondary">{{ 'app.tagline' | translate }}</p>
 </main>
 
 <!-- Emplacement des futures pages (le routeur les affichera ici) -->
