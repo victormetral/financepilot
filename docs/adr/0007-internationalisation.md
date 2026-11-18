@@ -1,7 +1,7 @@
 # ADR-007 — Internationalisation du front
 
 - **Date** : 06/11/2026
-- **Statut** : proposée
+- **Statut** : remplacée par l'ADR-010 (ngx-translate, 18/11/2026)
 - **Lié à** : US 0 (utiliser l'appli en anglais), ADR-001 (stack du front)
 
 ## Contexte

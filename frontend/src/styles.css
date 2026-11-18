@@ -1,0 +1,20 @@
+/* ==========================================================
+ *  styles.css : les styles de toute l'appli
+ *  Tailwind, puis les couleurs et polices des maquettes Figma
+ * ========================================================== */
+
+/* Tailwind : fabrique le CSS à partir des classes utilisées */
+@import 'tailwindcss';
+/* Les couleurs, rayons et tailles de texte de Figma */
+@import './styles/tokens.css';
+/* Les deux polices des maquettes */
+@import '@fontsource-variable/fraunces';
+@import '@fontsource-variable/manrope';
+
+/* Fond et couleur du texte par défaut, pris dans les couleurs Figma */
+@layer base {
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-primary);
+  }
+}
