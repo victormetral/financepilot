@@ -3,6 +3,7 @@
 - **Date** : 28/10/2026
 - **Statut** : proposée
 - **Lié à** : ADR-001 (front en trois couches : vue → store → service)
+- **À revoir** : avec Angular (ADR-009) → `httpResource` ou TanStack Query, à trancher avec Dimitri
 
 ## Contexte
 

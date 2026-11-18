@@ -1,59 +1,37 @@
-# Frontend
+# FinancePilot — Front
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.7.
+Interface web de FinancePilot : Angular 22, TypeScript, Tailwind CSS, tests Vitest.
 
-## Development server
+Installation et lancement → voir le [README principal](../README.md).
 
-To start a local development server, run:
+## Commandes
 
-```bash
-ng serve
+| Commande | Rôle |
+|---|---|
+| `npm start` | lance le front sur http://localhost:4200, qui se recharge à chaque modification |
+| `npm test` | tests (Vitest) |
+| `npm run lint` | analyse du code et des templates, accessibilité comprise (angular-eslint) |
+| `npm run build` | fabrique l'appli dans `dist/` |
+
+## Organisation
+
+```
+src/
+├── app/
+│   ├── app.ts, app.html      → le composant racine
+│   ├── app.config.ts         → les fournisseurs : routeur, traduction
+│   └── i18n/language-store.ts → la langue : navigateur, choix retenu, <html lang>
+├── i18n/fr.json, en.json     → tous les textes de l'appli
+└── styles/tokens.css         → couleurs, polices et tailles des maquettes Figma
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+## Règles
 
-## Code scaffolding
+- Aucun texte écrit en dur dans un composant → il va dans `fr.json` et `en.json`.
+- Couleurs et tailles → les classes tirées de `tokens.css`, jamais de valeur en dur.
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Décisions
 
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- Angular → [ADR-009](../docs/adr/0009-framework-du-front.md)
+- Traduction avec ngx-translate → [ADR-010](../docs/adr/0010-traduction-du-front.md)
+- Tailwind CSS → [ADR-006](../docs/adr/0006-methode-de-style.md)

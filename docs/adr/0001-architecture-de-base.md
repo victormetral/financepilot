@@ -3,12 +3,13 @@
 - **Date** : 12/10/2026, mise à jour le 28/10/2026 (couches du front, pourquoi cette stack)
 - **Statut** : proposée
 - **Remplace** : la version du 03/10/2026 (cœur hexagonal), archivée dans le document 13c du Drive
+- **Remplacé en partie** : le front React, par l'ADR-009 (Angular, 17/11/2026)
 
 ## Contexte
 
 Je développe FinancePilot seul, avec 15 à 20 heures par semaine, pour une V1 à livrer avant février 2027. Je débute en TypeScript et en NestJS.
 
-Le livrable du CDA, c'est la V1 : environ 190 points d'effort, dont 92 de « Must » à livrer avant février. C'est un MVP : il doit d'abord être testé par de vrais utilisateurs.
+Le livrable du CDA, c'est la V1 : environ 190 points d'effort, dont 92 de "Must" à livrer avant février. C'est un MVP : il doit d'abord être testé par de vrais utilisateurs.
 
 Le titre attend un front et un back séparés, une API documentée et une application organisée en couches.
 
@@ -19,7 +20,7 @@ Le titre attend un front et un back séparés, une API documentée et une applic
 3. **Client-serveur, back en architecture hexagonale** : même découpage, mais un cœur métier isolé derrière des ports et des adaptateurs. Plus testable, mais pensé pour de gros projets et de grandes équipes.
 4. **Microservices** : plusieurs petits back indépendants, avec une API gateway. Fait pour de grandes équipes ; seul, ça mangerait tout mon temps.
 
-Comparaison détaillée : document 13 du Drive, « Comparaison des styles d'architecture ».
+Comparaison détaillée : document 13 du Drive, "Comparaison des styles d'architecture".
 
 ## Décision
 
@@ -64,7 +65,7 @@ TypeScript partout, React avec Vite, TanStack Query, NestJS, PostgreSQL, Prisma.
 
 ### TypeScript
 
-- Les erreurs de type sont vues dans l'éditeur, avant l'exécution (par exemple un montant reçu en texte « 100 » au lieu du nombre 100).
+- Les erreurs de type sont vues dans l'éditeur, avant l'exécution (par exemple un montant reçu en texte "100" au lieu du nombre 100).
 - Front et back dans le même langage → ils partagent les mêmes types (par exemple `Account`) ; un champ changé côté back casse la compilation du front, pas l'application.
 - Un seul langage à maîtriser, pour un développeur seul.
 - NestJS et Prisma sont conçus pour TypeScript ; Angular, prévu dans ma roadmap, l'impose.
