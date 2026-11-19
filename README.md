@@ -79,7 +79,7 @@ Un ADR (*Architecture Decision Record*) note une décision, les options écarté
 
 ```mermaid
 flowchart LR
-  FRONT["Front : React (SPA, installable en PWA)"] <-->|HTTP / JSON| API["API REST : NestJS"]
+  FRONT["Front : Angular (SPA, installable en PWA)"] <-->|HTTP / JSON| API["API REST : NestJS"]
   API <-->|SQL via Prisma| DB[(PostgreSQL)]
   API -->|paiement| STRIPE["Stripe"]
   STRIPE -->|webhook| API
@@ -112,7 +112,7 @@ flowchart LR
 | Back | NestJS, Swagger |
 | Base | PostgreSQL 17 dans Docker, Prisma 7 |
 | Tests | Vitest |
-| Front | React, Vite — à venir |
+| Front | Angular — à venir |
 | Paiement | Stripe — à venir |
 
 ---
@@ -127,7 +127,7 @@ flowchart LR
 - ✅ Vitest configuré, un premier test qui passe
 - ✅ PostgreSQL dans Docker, Prisma relié à NestJS (les tables arrivent au Sprint 1)
 - ⏳ intégration continue avec GitHub Actions
-- ⏳ front React + Vite, en français et en anglais
+- ⏳ front Angular, en français et en anglais
 - ⏳ mise en ligne
 
 **Conception** (outil de pilotage privé) :
@@ -170,5 +170,5 @@ npm run start:dev
 ---
 
 **Victor Metral** — Ada Tech School, Lyon
-En recherche d'une alternance de 12 mois à partir de janvier 2027 — développement fullstack ou backend, full remote ou France.
+En recherche d'une alternance de 12 mois, démarrage de janvier à mai 2027 — développement fullstack ou backend, full remote ou France.
 [LinkedIn](https://linkedin.com/in/victor-metral-dev) · [GitHub](https://github.com/victormetral)
