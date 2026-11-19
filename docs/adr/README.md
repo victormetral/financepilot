@@ -10,7 +10,7 @@ Un numéro réservé est écrit dans la PR du code qu'il décide.
 | 003 | Chiffrement des données | Sécurité | à écrire (Sprint 1) |
 | 004 | Envoi des e-mails | Back | à écrire (Sprint 1) |
 | [005](0005-etat-du-front.md) | État du front | Front | proposée ; à revoir avec Angular |
-| [006](0006-methode-de-style.md) | Méthode de style : Tailwind CSS | Front | proposée |
+| [006](0006-methode-de-style.md) | Méthode de style : Tailwind CSS | Front | proposée ; adaptée à Angular |
 | [007](0007-internationalisation.md) | Traduction : i18next | Front | remplacée par 010 |
 | 008 | Serveur et mise en ligne | Infra | à écrire (bloc 7) |
 | [009](0009-framework-du-front.md) | Framework du front : Angular | Front | acceptée |

@@ -3,6 +3,7 @@
 - **Date** : 02/11/2026
 - **Statut** : proposée
 - **Lié à** : ADR-001 (stack du front), identité visuelle du 28/10/2026 (thème sombre par défaut)
+- **Adaptée** : à Angular (ADR-009) → plugin PostCSS au lieu du plugin Vite, classes dans les templates HTML au lieu du JSX, tests avec TestBed au lieu de Testing Library
 
 ## Contexte
 
