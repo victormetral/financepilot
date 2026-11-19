@@ -10,7 +10,7 @@ Refonte menée dans le cadre du titre RNCP 6 "Concepteur Développeur d'Applicat
 > **La version qui fonctionne est dans [financepilot-v0](https://github.com/victormetral/financepilot-v0).**
 > Ce dépôt-ci contient la refonte : conçue, socle en place, aucune fonctionnalité encore codée.
 
-| Dépôt | Contenu | État au 17/11/2026 |
+| Dépôt | Contenu | État au 19/11/2026 |
 |---|---|---|
 | [**financepilot-v0**](https://github.com/victormetral/financepilot-v0) | Première version, réalisée en autonomie | Fonctionne. 59 tests unitaires et 5 scripts d'intégration, relancés à chaque envoi de code (intégration continue) |
 | **financepilot** (ici) | Refonte CDA, en TypeScript | Conception de la V1 faite, socle technique en cours, aucune fonctionnalité codée |
@@ -79,7 +79,7 @@ Un ADR (*Architecture Decision Record*) note une décision, les options écarté
 
 ```mermaid
 flowchart LR
-  FRONT["Front : React (SPA, installable en PWA)"] <-->|HTTP / JSON| API["API REST : NestJS"]
+  FRONT["Front : Angular (SPA, installable en PWA)"] <-->|HTTP / JSON| API["API REST : NestJS"]
   API <-->|SQL via Prisma| DB[(PostgreSQL)]
   API -->|paiement| STRIPE["Stripe"]
   STRIPE -->|webhook| API
@@ -111,8 +111,8 @@ flowchart LR
 | Langage | TypeScript, partout |
 | Back | NestJS, Swagger |
 | Base | PostgreSQL 18 dans Docker, Prisma 7 |
-| Tests | Vitest, Testing Library |
-| Front | React 19, Vite 8 |
+| Tests | Vitest |
+| Front | Angular 22, Tailwind CSS, ngx-translate |
 | Intégration continue | GitHub Actions |
 | Paiement | Stripe — à venir |
 
@@ -128,11 +128,11 @@ flowchart LR
 - ✅ Vitest configuré, un premier test qui passe
 - ✅ PostgreSQL dans Docker, Prisma relié à NestJS (les tables arrivent au Sprint 1)
 - ✅ intégration continue avec GitHub Actions : lint, tests et build du back et du front, à chaque push
-- ✅ front React + Vite qui démarre, un premier test qui passe
+- ✅ socle du front en Angular 22 ([ADR-009](docs/adr/0009-framework-du-front.md)) : un premier écran, 7 tests, analyse du code et des templates
 - ✅ couleurs et polices des maquettes, en thème clair et sombre
-- ✅ front en français et en anglais
+- ✅ front en français et en anglais, avec ngx-translate ([ADR-010](docs/adr/0010-traduction-du-front.md))
 - ✅ back dans Docker : la base et l'API se lancent avec une seule commande
-- ⏳ front : passage de React à Angular (décidé le 15/11/2026)
+- ⏳ image Docker du front
 - ⏳ mise en ligne
 
 **Conception** (outil de pilotage privé) :
@@ -158,7 +158,7 @@ git clone https://github.com/victormetral/financepilot.git
 cd financepilot
 git switch dev
 cp .env.example .env
-docker compose up -d
+docker compose up -d db
 cd backend
 cp .env.example .env
 npm install
@@ -167,7 +167,7 @@ npm run start:dev
 ```
 
 - Les deux fichiers `.env` → choisir un mot de passe, le même dans les deux.
-- `docker compose up -d` → démarre PostgreSQL, sur le port 5433.
+- `docker compose up -d db` → démarre seulement PostgreSQL, sur le port 5433 ; l'API tourne alors sur le Mac.
 - `npx prisma generate` → génère le code d'accès à la base.
 - `npm run start:dev` → l'API répond sur http://localhost:3000, Swagger sur http://localhost:3000/api.
 
@@ -176,10 +176,10 @@ Puis le front, dans un deuxième terminal, depuis la racine du dépôt :
 ```bash
 cd frontend
 npm install
-npm run dev
+npm start
 ```
 
-- `npm run dev` → le front répond sur http://localhost:5173.
+- `npm start` → le front répond sur http://localhost:4200.
 - `npm test` → lance les tests, dans `backend/` comme dans `frontend/`.
 
 ### Avec Docker : base et API
@@ -195,5 +195,5 @@ docker compose up -d --build
 ---
 
 **Victor Metral** — Ada Tech School, Lyon
-En recherche d'une alternance de 12 mois à partir de janvier 2027 — développement fullstack ou backend, full remote ou France.
+En recherche d'une alternance de 12 mois, démarrage de janvier à mai 2027 — développement fullstack ou backend, full remote ou France.
 [LinkedIn](https://linkedin.com/in/victor-metral-dev) · [GitHub](https://github.com/victormetral)
