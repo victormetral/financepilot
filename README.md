@@ -131,8 +131,7 @@ flowchart LR
 - ✅ socle du front en Angular 22 ([ADR-009](docs/adr/0009-framework-du-front.md)) : un premier écran, 7 tests, analyse du code et des templates
 - ✅ couleurs et polices des maquettes, en thème clair et sombre
 - ✅ front en français et en anglais, avec ngx-translate ([ADR-010](docs/adr/0010-traduction-du-front.md))
-- ✅ back dans Docker : la base et l'API se lancent avec une seule commande
-- ⏳ image Docker du front
+- ✅ tout le projet dans Docker : la base, l'API et le front se lancent avec une seule commande, sans droits administrateur (root)
 - ⏳ mise en ligne
 
 **Conception** (outil de pilotage privé) :
@@ -182,15 +181,16 @@ npm start
 - `npm start` → le front répond sur http://localhost:4200.
 - `npm test` → lance les tests, dans `backend/` comme dans `frontend/`.
 
-### Avec Docker : base et API
+### Avec Docker : base, API et front
 
 ```bash
 cp .env.example .env
 docker compose up -d --build
 ```
 
-- → PostgreSQL et l'API démarrent dans deux conteneurs ; l'API attend que la base soit prête.
-- → API sur http://localhost:3000, Swagger sur http://localhost:3000/api.
+- → PostgreSQL, l'API et le front démarrent dans trois conteneurs ; l'API attend que la base soit prête.
+- → API sur http://localhost:3000, Swagger sur http://localhost:3000/api, front sur http://localhost:8081.
+- → Les ports ne sont ouverts que sur la machine (127.0.0.1), jamais sur le réseau.
 
 ---
 
