@@ -124,8 +124,8 @@ flowchart LR
 
 **Branche [`dev`](https://github.com/victormetral/financepilot/tree/dev)** : le Sprint 0, le socle technique.
 
-- ✅ API NestJS qui démarre, documentation Swagger sur `/api`
-- ✅ Vitest configuré, un premier test qui passe
+- ✅ API NestJS : toutes les routes sous `/api`, route de santé `/api/health` qui vérifie la base, documentation Swagger sur `/api/docs` en local
+- ✅ Vitest configuré : tests unitaires, et un test de bout en bout avec une vraie base
 - ✅ PostgreSQL dans Docker, Prisma relié à NestJS (les tables arrivent au Sprint 1)
 - ✅ intégration continue avec GitHub Actions : lint, tests et build du back et du front, à chaque push
 - ✅ socle du front en Angular 22 ([ADR-009](docs/adr/0009-framework-du-front.md)) : un premier écran, 7 tests, analyse du code et des templates
@@ -168,7 +168,7 @@ npm run start:dev
 - Les deux fichiers `.env` → choisir un mot de passe, le même dans les deux.
 - `docker compose up -d db` → démarre seulement PostgreSQL, sur le port 5433 ; l'API tourne alors sur le Mac.
 - `npx prisma generate` → génère le code d'accès à la base.
-- `npm run start:dev` → l'API répond sur http://localhost:3000, Swagger sur http://localhost:3000/api.
+- `npm run start:dev` → l'API répond sur http://localhost:3000/api (santé : http://localhost:3000/api/health), Swagger sur http://localhost:3000/api/docs.
 
 Puis le front, dans un deuxième terminal, depuis la racine du dépôt :
 
@@ -180,6 +180,7 @@ npm start
 
 - `npm start` → le front répond sur http://localhost:4200.
 - `npm test` → lance les tests, dans `backend/` comme dans `frontend/`.
+- `npm run test:e2e` → dans `backend/`, le test de bout en bout ; la base Docker doit tourner.
 
 ### Avec Docker : base, API et front
 
@@ -189,7 +190,7 @@ docker compose up -d --build
 ```
 
 - → PostgreSQL, l'API et le front démarrent dans trois conteneurs ; l'API attend que la base soit prête.
-- → API sur http://localhost:3000, Swagger sur http://localhost:3000/api, front sur http://localhost:8081.
+- → API sur http://localhost:3000/api (santé : /api/health), Swagger sur http://localhost:3000/api/docs, front sur http://localhost:8081.
 - → Les ports ne sont ouverts que sur la machine (127.0.0.1), jamais sur le réseau.
 
 ---
