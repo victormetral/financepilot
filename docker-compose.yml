@@ -31,9 +31,12 @@ services:
   api:
     build: ./backend
     container_name: financepilot_api
-    # Adresse de la base vue depuis le conteneur : nom du service + port interne
+    # Variables passées à l'API
     environment:
+      # Adresse de la base vue depuis le conteneur : nom du service + port interne
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Swagger sur /api/docs : activé ici, en local ; jamais dans le compose de production
+      SWAGGER_ENABLED: "true"
     # Choix pro : 127.0.0.1 → joignable seulement depuis ce Mac
     # Port du Mac : port du conteneur
     ports:
