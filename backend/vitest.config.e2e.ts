@@ -6,5 +6,7 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
+    // Charge backend/.env avant les tests (en CI, DATABASE_URL vient du workflow)
+    setupFiles: ['dotenv/config'],
   },
 });
