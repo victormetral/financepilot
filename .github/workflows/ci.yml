@@ -1,29 +1,35 @@
 # ==========================================================
-#  ci.yml : intégration continue (CI)
-#  À chaque push et PR vers dev ou main : installe, vérifie,
-#  teste et compile le back
+#  ci.yml : intégration et livraison continues (CI/CD)
+#  Teste le back et le front, puis construit, scanne et publie les images
 # ==========================================================
 
 name: CI
 
-# Quand la CI se lance
+# À chaque push et chaque PR vers dev ou main
 on:
   push:
     branches: [dev, main]
   pull_request:
     branches: [dev, main]
 
+# Une nouvelle exécution sur la même PR annule la précédente (main n'est jamais annulé)
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Par défaut, chaque job peut seulement lire le code
+permissions:
+  contents: read
+
 jobs:
-  # Un job = une machine Linux neuve, qui exécute les étapes dans l'ordre
+  # Le back : installer, auditer, vérifier, tester, compiler
   backend:
     runs-on: ubuntu-latest
-
-    # Toutes les commandes se lancent dans le dossier backend/
     defaults:
       run:
         working-directory: backend
 
-    # Une base PostgreSQL 18 jetable, pour les tests de bout en bout
+    # Une base PostgreSQL jetable pour les tests de bout en bout
     services:
       postgres:
         image: postgres:18-alpine
@@ -33,68 +39,144 @@ jobs:
           POSTGRES_DB: financepilot
         ports:
           - 5433:5432
-        # Attend que la base soit prête avant de continuer
         options: >-
           --health-cmd "pg_isready -U financepilot"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-
-    # Adresse de la base jetable
     env:
       DATABASE_URL: postgresql://financepilot:ci_password@localhost:5433/financepilot
 
     steps:
-      # Récupère le code du dépôt
-      - uses: actions/checkout@v7
-
-      # Installe Node, à la version écrite dans .nvmrc
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: backend/package-lock.json
-
-      # Installe exactement les versions du package-lock.json
       - run: npm ci
-
-      # Génère le client Prisma (le code d'accès à la base)
+      # Échoue si une dépendance de production a une faille HIGH ou CRITICAL
+      - run: npm audit --omit=dev --audit-level=high
       - run: npx prisma generate
-
-      # Vérifie le style et les erreurs courantes
       - run: npm run lint
-
-      # Tests unitaires, puis de bout en bout
       - run: npm test
       - run: npm run test:e2e
-
-      # Vérifie que le projet compile
       - run: npm run build
 
-        # Deuxième job : le front, en parallèle du back
+  # Le front : installer, auditer, vérifier, tester, compiler
   frontend:
     runs-on: ubuntu-latest
-
-    # Toutes les commandes se lancent dans le dossier frontend/
     defaults:
       run:
         working-directory: frontend
 
     steps:
-      # Récupère le code du dépôt
-      - uses: actions/checkout@v7
-
-      # Installe Node, à la version écrite dans .nvmrc
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      # Installe exactement les versions du package-lock.json
       - run: npm ci
-
-      # Vérifie le style, teste, puis compile
+      # Échoue si une dépendance de production a une faille HIGH ou CRITICAL
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  # Les images : construire et scanner à chaque fois, publier seulement depuis main
+  images:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    # Droits en plus : publier sur GHCR et signer les attestations
+    permissions:
+      contents: read # lire le code
+      packages: write # publier sur GHCR
+      id-token: write # prouver l'identité du workflow pour signer
+      attestations: write # enregistrer les attestations
+
+    # Deux images, avec les mêmes étapes
+    strategy:
+      matrix:
+        include:
+          - name: financepilot-api
+            context: backend
+          - name: financepilot-web
+            context: frontend
+
+    env:
+      IMAGE: ghcr.io/victormetral/${{ matrix.name }}
+      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Construire l'image sur la machine, sans la publier
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          load: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          provenance: false
+
+      # Échoue si l'image a une faille HIGH ou CRITICAL qui a un correctif
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+      # Depuis main seulement : se connecter à GHCR
+      - if: env.PUBLISH == 'true'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Depuis main seulement : publier l'image (les calques viennent du cache de la construction)
+      - if: env.PUBLISH == 'true'
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          provenance: false
+
+      # Depuis main seulement : la liste de tout ce que contient l'image (SBOM)
+      - if: env.PUBLISH == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ github.sha }}
+          format: cyclonedx
+          output: sbom.cdx.json
+          skip-setup-trivy: true
+
+      # Depuis main seulement : signer l'origine de l'image (comment et où elle a été construite)
+      - if: env.PUBLISH == 'true'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      # Depuis main seulement : signer la SBOM de l'image
+      - if: env.PUBLISH == 'true'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          sbom-path: sbom.cdx.json
+          push-to-registry: true
