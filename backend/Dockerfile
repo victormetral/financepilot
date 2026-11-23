@@ -1,41 +1,33 @@
 # ==========================================================
-#  Dockerfile : la recette de l'image du back
-#  Construit l'API NestJS, puis la lance dans une image légère
-#  Choix pro : deux étapes → l'image finale ne garde que le nécessaire
+#  Dockerfile du back : construit l'API, puis la lance
 # ==========================================================
 
-# Étape A : construire l'appli
-# Choix pro : version de Node fixée (26, LTS), image Alpine légère
+# Étape A : installer les dépendances, puis compiler
 FROM node:26-alpine AS build
 WORKDIR /app
-
-# Les dépendances d'abord (Docker garde ce résultat en cache)
-# Choix pro : npm ci → exactement les versions du package-lock
 COPY package.json package-lock.json ./
 RUN npm ci
-
-# Le reste du code, puis le client Prisma et la compilation
 COPY . .
 RUN npx prisma generate
 RUN npm run build
 
-# Étape B : exécuter l'appli, dans une image neuve
+# Étape B : une image neuve, avec seulement ce qui sert à lancer l'API
 FROM node:26-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Seulement les paquets utiles en production
-# Choix pro : aucun outil de construction dans l'image finale
-# Choix pro : vider le cache dans le même RUN (un calque ne rétrécit jamais après coup)
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# Correctifs de sécurité d'Alpine
+RUN apk upgrade --no-cache
 
-# Le code compilé, récupéré de l'étape A
+# Dépendances de production, puis suppression de npm (inutile pour lancer l'API)(Failles HIGH Trivy)
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
+# Le code compilé de l'étape A
 COPY --from=build /app/dist ./dist
 
-# Choix pro : ne pas tourner en administrateur (sécurité)
+# Lancer l'API sans être administrateur
 USER node
-
-# Le port de l'API, puis la commande de lancement
 EXPOSE 3000
 CMD ["node", "dist/main.js"]
