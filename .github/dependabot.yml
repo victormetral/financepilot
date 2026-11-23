@@ -28,6 +28,9 @@ updates:
         update-types:
           - "minor"
           - "patch"
+        # TypeScript à part : s'il casse le build, il ne bloque pas les autres
+        exclude-patterns:
+          - "typescript"
       # Correctifs de sécurité : une seule PR par dossier
       npm-security:
         applies-to: security-updates
@@ -40,6 +43,9 @@ updates:
         update-types: ["version-update:semver-major"]
       # Types de Node : ils suivent la version de Node des images (26)
       - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript : Angular et le CLI de Nest imposent leur version
+      - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
     # Message de commit : "build(deps): bump ..."
     commit-message:
