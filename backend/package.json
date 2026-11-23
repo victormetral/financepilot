@@ -58,5 +58,10 @@
     "fsevents@2.3.3": true,
     "prisma@7.10.1": true,
     "@scarf/scarf": false
+  },
+  "overrides": {
+    "@prisma/config": {
+      "effect": "3.22.5"
+    }
   }
 }
