@@ -1,0 +1,18 @@
+# ==========================================================
+#  .dockerignore : ce que Docker ne copie pas dans l'image du front
+#  Plus léger, plus rapide : seules les sources partent dans l'image
+# ==========================================================
+
+# Paquets installés sur le Mac (réinstallés dans l'image par npm ci)
+node_modules
+
+# Code compilé (refabriqué dans l'image par ng build)
+dist
+
+# Cache de compilation d'Angular (il peut peser des centaines de Mo)
+.angular
+
+# Inutiles pour construire le front
+coverage
+.vscode
+*.md

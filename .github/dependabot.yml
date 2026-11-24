@@ -1,0 +1,107 @@
+# ==========================================================
+#  dependabot.yml : mises à jour automatiques des dépendances
+#  Chaque lundi, Dependabot vérifie les paquets npm, les images
+#  Docker et les actions GitHub, puis ouvre des PR vers dev
+# ==========================================================
+
+# Version du format de ce fichier (toujours 2)
+version: 2
+
+updates:
+  # Paquets npm du back et du front
+  - package-ecosystem: "npm"
+    directories:
+      - "/backend"
+      - "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Paris"
+    # Attend 7 jours après la sortie d'une version (protège des paquets piégés)
+    cooldown:
+      default-days: 7
+    # Regroupe les PR pour en avoir moins
+    groups:
+      # Versions mineures et correctifs : une seule PR par dossier
+      npm-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+        # TypeScript à part : s'il casse le build, il ne bloque pas les autres
+        exclude-patterns:
+          - "typescript"
+      # Correctifs de sécurité : une seule PR par dossier
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    # Versions majeures que l'on fait à la main
+    ignore:
+      # Angular : on passe par "ng update", qui adapte aussi le code
+      - dependency-name: "@angular/*"
+        update-types: ["version-update:semver-major"]
+      # Types de Node : ils suivent la version de Node des images (26)
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript : Angular et le CLI de Nest imposent leur version
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+    # Message de commit : "build(deps): bump ..."
+    commit-message:
+      prefix: "build"
+      include: "scope"
+
+  # Images Docker des Dockerfile (node, nginx)
+  - package-ecosystem: "docker"
+    directories:
+      - "/backend"
+      - "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Paris"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "build"
+      include: "scope"
+
+  # Image de la base dans docker-compose.yml (postgres)
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Paris"
+    cooldown:
+      default-days: 7
+    # PostgreSQL : une version majeure demande de migrer les données
+    ignore:
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "build"
+      include: "scope"
+
+  # Actions GitHub des workflows (.github/workflows)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Paris"
+    cooldown:
+      default-days: 7
+    # Toutes les actions dans une seule PR
+    groups:
+      actions:
+        patterns:
+          - "*"
+    # Message de commit : "ci(deps): bump ..."
+    commit-message:
+      prefix: "ci"
+      include: "scope"

@@ -1,0 +1,224 @@
+# FinancePilot
+
+🇬🇧 [Read in English](README.md)
+
+[![CI](https://github.com/victormetral/financepilot/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/victormetral/financepilot/actions/workflows/ci.yml)
+
+Application de finances personnelles : voir tous ses comptes au même endroit, sans connecter sa banque.
+
+Refonte menée dans le cadre du titre RNCP 6 "Concepteur Développeur d'Applications" (CDA), à Ada Tech School.
+
+> [!IMPORTANT]
+> **La version qui fonctionne est dans [financepilot-v0](https://github.com/victormetral/financepilot-v0).**
+> Ce dépôt-ci contient la refonte : conçue, socle technique en place, aucune fonctionnalité encore codée.
+
+| Dépôt | Contenu | État au 24/11/2026 |
+|---|---|---|
+| [**financepilot-v0**](https://github.com/victormetral/financepilot-v0) | Première version, réalisée en autonomie | Fonctionne. 59 tests unitaires et 5 scripts d'intégration, relancés à chaque envoi de code (intégration continue) |
+| **financepilot** (ici) | Refonte CDA, en TypeScript | Conception de la V1 faite, socle technique et chaîne de livraison en place, aucune fonctionnalité codée |
+
+---
+
+## 1. Pourquoi une refonte
+
+La v0 fonctionne. C'est la démarche qui change : concevoir d'abord, coder ensuite.
+
+| | v0 | Refonte CDA |
+|---|---|---|
+| Point de départ | Le code | Le besoin : utilisateurs interrogés, trois personas |
+| Fonctionnalités | Ajoutées au fil du développement | 38 user stories écrites et priorisées avant le code |
+| Base de données | Tables créées directement en SQL | Modèle conçu d'abord (méthode Merise), puis traduit en tables |
+| Architecture | Choix expliqués dans le README | Quatre options comparées, décision écrite avant le code |
+| Stack | JavaScript, Express, PostgreSQL sans ORM | TypeScript, NestJS, PostgreSQL avec Prisma |
+
+- *User story* : une fonctionnalité décrite du point de vue de l'utilisateur ("je veux… afin de…").
+- *Merise* : méthode de conception de bases de données → le métier d'abord, les tables ensuite.
+- *ORM* : outil qui traduit le code en requêtes SQL. Ici, Prisma.
+
+Le concept a aussi été recentré.
+L'idée de départ, trois niveaux d'usage (Essential, Invest, Trade), revenait à faire trois applications en une.
+La V1 se concentre sur un seul besoin : savoir où on en est.
+
+---
+
+## 2. Le produit
+
+> Une application rassurante qui permet d'avoir une vision globale et à long terme de ses finances — sans jamais connecter sa banque.
+
+**Pour qui** : quelqu'un qui veut savoir où il en est, sans y passer de temps, et qui ne connectera jamais sa banque à une application.
+
+### Le parti pris : pas de connexion bancaire
+
+- Les agrégateurs (Finary, Bankin'…) demandent l'accès aux comptes bancaires → une partie du public refuse.
+- FinancePilot propose deux autres voies :
+  - **déclarer ses soldes** à la main ;
+  - **importer ses relevés PDF** → lus dans le navigateur ; le fichier n'est ni envoyé ni stocké, seules les opérations extraites partent au serveur.
+- Le prix de ce choix : des chiffres moins frais qu'avec une synchronisation automatique.
+
+### Ce que la V1 permettra — rien n'est encore codé
+
+| Domaine | L'utilisateur pourra… |
+|---|---|
+| Compte | créer son compte, se connecter, télécharger ou supprimer ses données |
+| Comptes et soldes | déclarer ses comptes, voir son total, suivre l'évolution de son patrimoine |
+| Import | importer ses relevés PDF, vérifier qu'ils ont été bien lus, éviter les doublons, voir ses opérations classées |
+| Partage | montrer certains comptes à un proche → lecture seule, durée limitée, révocable, consultations tracées |
+| Projection | se fixer un objectif, voir son patrimoine estimé à 1, 5, 10 et 20 ans |
+| Abonnement | 3 €/mois ou 30 €/an, après un essai de 30 jours sans carte bancaire |
+
+**Plus tard (V2, 12 user stories)** : détection des abonnements et des dépenses inhabituelles, suivi des placements, vue commune du foyer.
+
+---
+
+## 3. L'architecture
+
+Décision complète : [ADR-001 — Architecture de base](docs/adr/0001-architecture-de-base.md).
+Un ADR (*Architecture Decision Record*) note une décision, les options écartées et pourquoi. Tous les ADR : [index](docs/adr/README.md).
+
+**Quatre options comparées** : monolithe classique, client-serveur avec un back en couches, architecture hexagonale, microservices.
+
+**Choix : client-serveur, avec un back en couches.**
+
+```mermaid
+flowchart LR
+  FRONT["Front : Angular (SPA, installable en PWA)"] <-->|HTTP / JSON| API["API REST : NestJS"]
+  API <-->|SQL via Prisma| DB[(PostgreSQL)]
+  API -->|paiement| STRIPE["Stripe"]
+  STRIPE -->|webhook| API
+```
+
+- **Front** : une application d'une seule page (SPA), installable sur téléphone comme une appli (PWA).
+- **API** : REST, documentée avec Swagger → une page web qui liste et permet de tester chaque route.
+- **Back** : un module par domaine (auth, comptes, partage, projection, import, abonnement).
+- Dans chaque module, trois couches : contrôleur (reçoit la requête) → service (règles métier) → repository (accès à la base).
+- Chaque couche n'appelle que celle du dessous.
+
+**Pourquoi ce choix — le contexte réel :**
+
+- un développeur seul, 15 à 20 heures par semaine ;
+- débutant en TypeScript et en NestJS ;
+- une V1 à livrer avant février 2027 ;
+- → l'option que je peux livrer à temps, et qui couvre ce qu'attend le titre : front et back séparés, API documentée, application en couches.
+
+**Conséquences assumées :**
+
+- un seul back à déployer, des modules qui suivent les domaines fonctionnels ;
+- à surveiller : des services qui grossissent, le couplage entre modules ;
+- quand le projet grandira → passage à l'architecture hexagonale, dans un nouvel ADR.
+
+### Stack
+
+| Partie | Outils |
+|---|---|
+| Langage | TypeScript, partout |
+| Back | NestJS, Swagger |
+| Base | PostgreSQL 18 dans Docker, Prisma 7 |
+| Tests | Vitest |
+| Front | Angular 22, Tailwind CSS, ngx-translate |
+| Intégration et livraison continues | GitHub Actions, images publiées sur GitHub Container Registry (GHCR) |
+| Sécurité de la chaîne | Dependabot, CodeQL, Trivy, attestations signées de GitHub |
+| Paiement | Stripe — à venir |
+
+---
+
+## 4. La chaîne de livraison
+
+À chaque pull request, rien n'est fusionné tant que tout n'est pas vert.
+
+```mermaid
+flowchart LR
+  PR["1. Pull request<br/>vers dev ou main"] --> T["2. backend + frontend<br/>lint, npm audit, tests, build"]
+  T --> I["3. images<br/>build + scan Trivy"]
+  I -->|"4. main seulement"| G["GHCR<br/>tag = SHA du commit<br/>SBOM + origine signées"]
+  G -->|"5. récupérée par"| S["Serveur VPS<br/>(à venir)"]
+```
+
+- **Contrôles obligatoires** → `backend`, `frontend`, les deux jobs `images`, et CodeQL : une PR rouge ne se fusionne pas.
+- **Dépendances** → `npm audit` bloque une faille HIGH ou CRITICAL ; Dependabot propose les mises à jour chaque lundi.
+- **Images** → API et front, sans administrateur (root) ; scannées par Trivy à chaque exécution.
+- **Publication** → depuis `main` seulement, étiquetée avec le SHA du commit, avec sa liste de composants (SBOM) et la preuve signée de son origine.
+- **Actions GitHub** → épinglées par l'empreinte (SHA) de leur commit, avec des droits minimum.
+- Signaler une faille, vérifier une image → [SECURITY.fr.md](SECURITY.fr.md).
+
+---
+
+## 5. Où en est le projet
+
+**Branche `main`** : la dernière version stable, mise à jour à la fin de chaque sprint.
+
+**Branche [`dev`](https://github.com/victormetral/financepilot/tree/dev)** (branche par défaut) : le travail en cours. Sprint 0, le socle technique :
+
+- ✅ API NestJS : toutes les routes sous `/api`, route de santé `/api/health` qui vérifie la base, documentation Swagger sur `/api/docs` en local
+- ✅ Vitest configuré : tests unitaires, et un test de bout en bout avec une vraie base
+- ✅ PostgreSQL dans Docker, Prisma relié à NestJS (les tables arrivent au Sprint 1)
+- ✅ socle du front en Angular 22 ([ADR-009](docs/adr/0009-framework-du-front.md)) : un premier écran, 7 tests, analyse du code et des templates
+- ✅ couleurs et polices des maquettes, en thème clair et sombre
+- ✅ front en français et en anglais, avec ngx-translate ([ADR-010](docs/adr/0010-traduction-du-front.md))
+- ✅ tout le projet dans Docker : la base, l'API et le front se lancent avec une seule commande, sans droits administrateur (root)
+- ✅ intégration et livraison continues : lint, audit des dépendances, tests et build, puis images scannées et publiées sur GHCR depuis `main`
+- ✅ sécurité du dépôt : Dependabot, CodeQL, analyse des secrets, signalement privé des failles
+- ⏳ mise en ligne, sur un serveur VPS
+
+**Conception** (outil de pilotage privé) :
+
+- ✅ 38 user stories pour la V1, estimées et priorisées : 191 points d'effort, dont 92 indispensables (*Must*)
+- ✅ modèle de données en trois niveaux : conceptuel, logique, physique (MCD, MLD, MPD)
+- ✅ Sprint 1 préparé
+- ✅ maquettes Figma du Sprint 1 et design system, en thème clair et sombre
+
+*Points d'effort* : une estimation relative de la difficulté, pas des heures.
+
+**Prochaine étape — Sprint 1** : "Je crée mon compte, je déclare mes comptes, je vois mon total."
+5 user stories, 28 points → créer un compte, se connecter, se déconnecter, déclarer un compte, voir tous ses comptes.
+
+---
+
+## 6. Lancer le socle
+
+Prérequis : Node.js 26 (version figée dans `.nvmrc`) et Docker.
+
+```bash
+git clone https://github.com/victormetral/financepilot.git
+cd financepilot
+cp .env.example .env
+docker compose up -d db
+cd backend
+cp .env.example .env
+npm install
+npx prisma generate
+npm run start:dev
+```
+
+- Les deux fichiers `.env` → choisir un mot de passe, le même dans les deux.
+- `docker compose up -d db` → démarre seulement PostgreSQL, sur le port 5433 ; l'API tourne alors sur la machine.
+- `npx prisma generate` → génère le code d'accès à la base.
+- `npm run start:dev` → l'API répond sur http://localhost:3000/api (santé : http://localhost:3000/api/health), Swagger sur http://localhost:3000/api/docs.
+
+Puis le front, dans un deuxième terminal, depuis la racine du dépôt :
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+- `npm start` → le front répond sur http://localhost:4200.
+- `npm test` → lance les tests, dans `backend/` comme dans `frontend/`.
+- `npm run test:e2e` → dans `backend/`, le test de bout en bout ; la base Docker doit tourner.
+
+### Avec Docker : base, API et front
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
+
+- → PostgreSQL, l'API et le front démarrent dans trois conteneurs ; l'API attend que la base soit prête.
+- → API sur http://localhost:3000/api (santé : /api/health), Swagger sur http://localhost:3000/api/docs, front sur http://localhost:8081.
+- → Les ports ne sont ouverts que sur la machine (127.0.0.1), jamais sur le réseau.
+
+---
+
+**Victor Metral** — Ada Tech School, Lyon
+En recherche d'une alternance de 12 mois, démarrage de janvier à mai 2027 — développement fullstack ou backend, full remote ou France.
+[LinkedIn](https://linkedin.com/in/victor-metral-dev) · [GitHub](https://github.com/victormetral)

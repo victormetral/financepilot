@@ -1,0 +1,60 @@
+# ==========================================================
+#  docker-compose.yml : les services du projet
+#  Lance la base PostgreSQL, l'API et le front de FinancePilot dans Docker
+# ==========================================================
+
+services:
+  # Base de données PostgreSQL
+  db:
+    image: postgres:18-alpine
+    container_name: financepilot_postgres
+    # Identifiants lus dans le fichier .env (jamais sur GitHub)
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Choix pro : 127.0.0.1 → joignable seulement depuis ce Mac
+    # Port du Mac : port du conteneur (5432 est pris par Lovelace)
+    ports:
+      - "127.0.0.1:5433:5432"
+    # Les données survivent à la suppression du conteneur
+    # (depuis la version 18 : on monte /var/lib/postgresql, plus /data)
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    # Choix pro : l'API attend que la base soit vraiment prête
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+
+  # API NestJS, construite à partir de backend/Dockerfile
+  api:
+    build: ./backend
+    container_name: financepilot_api
+    # Variables passées à l'API
+    environment:
+      # Adresse de la base vue depuis le conteneur : nom du service + port interne
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Swagger sur /api/docs : activé ici, en local ; jamais dans le compose de production
+      SWAGGER_ENABLED: "true"
+    # Choix pro : 127.0.0.1 → joignable seulement depuis ce Mac
+    # Port du Mac : port du conteneur
+    ports:
+      - "127.0.0.1:3000:3000"
+    # Démarre seulement quand la base répond "prête"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Front Angular servi par nginx, construit à partir de frontend/Dockerfile
+  web:
+    build: ./frontend
+    container_name: financepilot_web
+    # Choix pro : 127.0.0.1 → joignable seulement depuis ce Mac
+    # Port du Mac : port du conteneur (8080 est pris par orchestra)
+    ports:
+      - "127.0.0.1:8081:8080"
+
+# Déclaration du volume utilisé plus haut
+volumes:
+  postgres_data:

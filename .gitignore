@@ -1,5 +1,22 @@
+# ==========================================================
+#  .gitignore : fichiers que Git ne suit pas
+#  Dépendances, secrets, fichiers générés, réglages perso
+# ==========================================================
+
+# Dépendances installées par npm
 node_modules/
+
+# Secrets (mots de passe, adresse de la base)
 .env
+
+# Fichiers générés par le build et les tests
 dist/
 coverage/
+*.tsbuildinfo
+
+# Fichiers du système macOS
 .DS_Store
+
+# Réglages perso de VS Code ; seule la liste des extensions conseillées sera partagée
+.vscode/*
+!.vscode/extensions.json
