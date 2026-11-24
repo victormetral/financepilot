@@ -15,3 +15,5 @@ Un numéro réservé est écrit dans la PR du code qu'il décide.
 | 008 | Serveur et mise en ligne | Infra | à écrire (bloc 7) |
 | [009](0009-framework-du-front.md) | Framework du front : Angular | Front | acceptée |
 | [010](0010-traduction-du-front.md) | Traduction : ngx-translate | Front | acceptée |
+| [011](0011-livraison-continue.md) | Livraison continue et sécurité de la chaîne | CI/CD | acceptée |
+| 012 | Images de production | Infra | à écrire (avant le 1er déploiement) |
